@@ -1,7 +1,12 @@
 """ctypes interface to the libpq library"""
 from ctypes import *
+from ctypes.util import find_library
 
-libpq = cdll.LoadLibrary('/opt/local/lib/postgresql90/libpq.dylib')
+path = find_library('libpq')
+if not path:
+    path = '/opt/local/lib/postgresql90/libpq.dylib'
+libpq = cdll.LoadLibrary(path)
+
 
 
 class PGconn(Structure):
