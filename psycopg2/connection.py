@@ -85,7 +85,6 @@ class Connection(object):
     def __del__(self):
         self._close()
 
-
     def setup(self):
         pgres = libpq.PQexec(self.pgconn, 'SHOW default_transaction_isolation')
         if not pgres or libpq.PQresultStatus(pgres) != libpq.PGRES_TUPLES_OK:
@@ -93,6 +92,7 @@ class Connection(object):
                 "can't fetch default_isolation_level")
 
         isolation_level = libpq.PQgetvalue(pgres, 0, 0)
+        libpq.PQclear(pgres)
         if (isolation_level == 'read uncommitted' or
             isolation_level == 'read committed'):
             self.isolation_level = self.ISOLATION_LEVEL_READ_COMMITTED
@@ -120,9 +120,12 @@ class Connection(object):
         pgres = libpq.PQexec(self.pgconn, command)
         if not pgres:
             self.raise_operational_error(None)
-        pgstatus = libpq.PQresultStatus(pgres)
-        if pgstatus != libpq.PGRES_COMMAND_OK:
-            self.raise_operational_error(pgres)
+        try:
+            pgstatus = libpq.PQresultStatus(pgres)
+            if pgstatus != libpq.PGRES_COMMAND_OK:
+                self.raise_operational_error(pgres)
+        finally:
+            libpq.PQclear(pgres)
 
     def execute_tpc_command(self, command):
         from psycopg2 import QuotedString
@@ -164,6 +167,9 @@ class Connection(object):
         if self.pgconn:
             libpq.PQfinish(self.pgconn)
             self.pgconn = None
+
+        if self._notices:
+            self._notices = None
 
     def _commit(self):
         if (self.isolation_level == self.ISOLATION_LEVEL_AUTOCOMMIT or
@@ -289,7 +295,6 @@ class Connection(object):
         if not self.tpc_xid:
             raise exceptions.ProgrammingError(
                 "prepare must be called inside a two-phase transaction")
-
 
 
 def connect(dsn=None, database=None, host=None, port=None, user=None,
