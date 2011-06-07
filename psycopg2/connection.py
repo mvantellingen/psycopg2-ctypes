@@ -9,8 +9,7 @@ from psycopg2.xid import Xid
 def conn_notice_callback(notices_addr, message):
     notices = Notices.from_address(notices_addr)
     new_message = libpq.cast(
-        libpq.pointer(libpq.create_string_buffer(message)), libpq.c_char_p)
-
+        libpq.create_string_buffer(message), libpq.c_char_p)
 
     if notices.stop == 50:
         idx = notices.start
