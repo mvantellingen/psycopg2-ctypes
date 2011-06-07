@@ -39,9 +39,9 @@ def register_type(type_obj, scope=None):
         from psycopg2.cursor import Cursor
 
         if isinstance(scope, Connection):
-            typecasts = scope.typecasts
+            typecasts = scope._typecasts
         elif isinstance(scope, Cursor):
-            typecasts = scope.typecasts
+            typecasts = scope._typecasts
         else:
             typecasts = None
 
@@ -56,10 +56,10 @@ def new_type(oids, name, adapter):
 
 
 def typecast(caster, value, length, cursor):
-    old = cursor.caster
-    cursor.caster = caster
+    old = cursor._caster
+    cursor._caster = caster
     val = caster.cast(value, length, cursor)
-    cursor.caster = old
+    cursor._caster = old
     return val
 
 def cast_string(value, length, cursor):
@@ -136,7 +136,7 @@ def cast_generic_array(value, length, cursor):
                     val.append(s[j])
             str_buf = "".join(val)
             val = typecast(
-                cursor.caster.base_caster, str_buf, end - start, cursor
+                cursor._caster.base_caster, str_buf, end - start, cursor
             )
             array.append(val)
     return stack[-1]
