@@ -17,6 +17,8 @@ class TestBase(TestCase):
         cls.xddl2 = "DROP TABLE barflys"
         cls.ddl3 = 'CREATE TABLE pythons ("id" serial NOT NULL PRIMARY KEY)'
         cls.xddl3 = "DROP TABLE pythons"
+        cls.ddl4 = u"CREATE TABLE unicode (m\xe9il INTEGER, \u6e2c\u8a66 Integer)"
+        cls.xddl4 = "DROP TABLE unicode"
 
         cls.samples = [tuple([s]) for s in [
                 'Carlton Cold', 'Carlton Draft', 'Mountain Goat', 'Redback',

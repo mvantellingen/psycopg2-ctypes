@@ -89,8 +89,12 @@ class Cursor(object):
     @check_closed
     def execute(self, query, parameters=None):
         self._description = None
-        self._query = self._combine_query_params(query, parameters)
 
+        if isinstance(query, unicode):
+            encoding = extensions.encodings[self._connection.encoding]
+            query = query.encode(encoding)
+
+        self._query = self._combine_query_params(query, parameters)
         conn = self._connection
         conn._begin_transaction()
         self._clear_pgres()

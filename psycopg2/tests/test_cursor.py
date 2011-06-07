@@ -108,6 +108,14 @@ class TestCursor(TestBase):
 
         conn.close()
 
+    def test_execute_unicode(self):
+        conn = self.connect()
+        cur = conn.cursor()
+        self.assertEqual(conn.encoding, 'UTF8')
+        cur.execute(self.ddl4)
+        cur.execute(self.xddl4)
+        conn.close()
+
     def test_executemany(self):
         conn = self.connect()
         cur = conn.cursor()
