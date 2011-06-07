@@ -275,7 +275,6 @@ class TestConnection(TestBase):
             cur.execute(sql)
 
         assert len(conn.notices) == 50, len(conn.notices)
-        print conn.notices
         assert "table50" in conn.notices[0]
         assert "table51" in conn.notices[1]
         assert "table98" in conn.notices[-2]
