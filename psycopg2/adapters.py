@@ -182,7 +182,7 @@ class DateTime(BaseAdapter):
             iso = obj.isoformat()
             if isinstance(obj, datetime.datetime):
                 format = 'timestamp'
-                if not getattr(obj, 'tzinfo', None):
+                if getattr(obj, 'tzinfo', None):
                     format = 'timestamptz'
             elif isinstance(obj, datetime.time):
                 format = 'time'
