@@ -36,6 +36,7 @@ def check_tpc(command):
             if self._tpc_xid:
                 raise exceptions.ProgrammingError(
                     "%s cannot be used during a two-phase transaction" % command)
+            return func(self, *args, **kwargs)
         return wrapper
     return decorator
 
