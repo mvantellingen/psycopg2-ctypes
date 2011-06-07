@@ -112,6 +112,7 @@ class Cursor(object):
 
         conn = self.connection
         conn._begin_transaction()
+        self.clear_pgres()
         self.pgres = libpq.PQexec(conn._pgconn, str(self.query))
         if not self.pgres:
             conn._raise_operational_error(self.pgres)
