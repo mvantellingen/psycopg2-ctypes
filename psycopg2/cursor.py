@@ -97,7 +97,7 @@ class Cursor(object):
 
         try:
             return query % converted_params
-        except TypeError, e:
+        except (TypeError, ValueError), e:  # PyPy raises a ValueError
             msg = e.message
             if msg == "not all arguments converted during string formatting":
                 raise ProgrammingError()
