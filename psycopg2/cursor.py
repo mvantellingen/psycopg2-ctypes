@@ -111,10 +111,10 @@ class Cursor(object):
         self.query = self.combine_query_params(query, parameters)
 
         conn = self.connection
-        conn.begin_transaction()
-        self.pgres = libpq.PQexec(conn.pgconn, str(self.query))
+        conn._begin_transaction()
+        self.pgres = libpq.PQexec(conn._pgconn, str(self.query))
         if not self.pgres:
-            conn.raise_operational_error(self.pgres)
+            conn._raise_operational_error(self.pgres)
 
         pgstatus = libpq.PQresultStatus(self.pgres)
         self.pgstatus = libpq.PQcmdStatus(self.pgres)
@@ -161,7 +161,7 @@ class Cursor(object):
             self.casts = casts
 
         else:
-            conn.raise_operational_error(self.pgres)
+            conn._raise_operational_error(self.pgres)
 
     @check_closed
     def executemany(self, query, paramlist):

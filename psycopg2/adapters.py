@@ -103,7 +103,7 @@ class QuotedString(BaseAdapter):
 
         if self.connection is not None:
             libpq.PQescapeStringConn(
-                self.connection.pgconn, to, string, length, err)
+                self.connection._pgconn, to, string, length, err)
         else:
             libpq.PQescapeString(to, string, length)
         return "E'%s'" % to.value
@@ -147,7 +147,7 @@ class Binary(BaseAdapter):
                 libpq.pointer(to_length))
 
         else:
-            raw_escaped = libpq.PQescapeByteaConn(self.connection.pgconn,
+            raw_escaped = libpq.PQescapeByteaConn(self.connection._pgconn,
                 str(self.obj), len(self.obj), libpq.pointer(to_length))
 
         escaped = raw_escaped[:to_length.value - 1]
