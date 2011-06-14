@@ -7,8 +7,18 @@ from psycopg2 import libpq
 
 
 encodings = {
-    "UNICODE": "utf_8",
-    "UTF8": "utf_8",
+    'UNICODE': 'utf_8',
+    'UTF8': 'utf_8',
+    'LATIN1': 'ISO-8859-1',
+    'LATIN2': 'ISO-8859-2',
+    'LATIN3': 'ISO-8859-3',
+    'LATIN4': 'ISO-8859-4',
+    'LATIN5': 'ISO-8859-9',
+    'LATIN6': 'ISO-8859-10',
+    'LATIN7': 'ISO-8859-13',
+    'LATIN8': 'ISO-8859-14',
+    'LATIN9': 'ISO-8859-15',
+    'LATIN10': 'ISO-8859-16'
 }
 
 string_types = {}
