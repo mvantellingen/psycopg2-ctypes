@@ -68,6 +68,7 @@ class Connection(object):
         self._closed = True
         self._typecasts = {}
         self._tpc_xid = None
+        self._notices = None
 
         # Connect
         self._pgconn = libpq.PQconnectdb(self.dsn)
