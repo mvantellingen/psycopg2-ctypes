@@ -57,9 +57,11 @@ def register_type(type_obj, scope=None):
 
     _register_type(type_obj, typecasts)
 
+
 def _register_type(obj, typecasts):
     for value in obj.values:
         typecasts[value] = obj
+
 
 def new_type(oids, name, adapter):
     return Type(name, oids, py_caster=adapter)
@@ -72,20 +74,26 @@ def typecast(caster, value, length, cursor):
     cursor._caster = old
     return val
 
+
 def cast_string(value, length, cursor):
     return value
+
 
 def cast_longinteger(value, length, cursor):
     return long(value)
 
+
 def cast_integer(value, length, cursor):
     return int(value)
+
 
 def cast_float(value, length, cursor):
     return float(value)
 
+
 def cast_decimal(value, length, cursor):
     return decimal.Decimal(value)
+
 
 def cast_binary(value, length, cursor):
     to_length = libpq.c_uint()
@@ -96,8 +104,10 @@ def cast_binary(value, length, cursor):
         libpq.PQfreemem(s)
     return res
 
+
 def cast_boolean(value, length, cursor):
     return value[0] == "t"
+
 
 def cast_generic_array(value, length, cursor):
     s = value
@@ -127,7 +137,7 @@ def cast_generic_array(value, length, cursor):
             while i < len(s) - 1:
                 if s[i] == '"':
                     if not b:
-                        q += 1;
+                        q += 1
                 elif s[i] == "\\":
                     b = not b
                 elif s[i] == "}" or s[i] == ",":
@@ -142,7 +152,7 @@ def cast_generic_array(value, length, cursor):
 
             val = []
             for j in xrange(start, end):
-                if s[j] != "\\" or s[j-1] == "\\":
+                if s[j] != "\\" or s[j - 1] == "\\":
                     val.append(s[j])
             str_buf = "".join(val)
             val = typecast(
@@ -150,6 +160,7 @@ def cast_generic_array(value, length, cursor):
             )
             array.append(val)
     return stack[-1]
+
 
 def cast_unicode(value, length, cursor):
     encoding = encodings[cursor.connection.encoding]
@@ -195,11 +206,14 @@ def cast_datetime(value, length, cursor):
     time = _parse_time(time, cursor)
     return datetime.datetime.combine(date, time)
 
+
 def cast_date(value, length, cursor):
     return _parse_date(value)
 
+
 def cast_time(value, length, cursor):
     return _parse_time(value, cursor)
+
 
 def cast_interval(value, length, cursor):
     years = months = days = 0

@@ -239,6 +239,7 @@ class TestConnection(TestBase):
         conn1.close()
         conn2.close()
 
+
     def test_notices(self):
         conn = self.connect()
         cur = conn.cursor()
@@ -273,7 +274,6 @@ class TestConnection(TestBase):
                 for j in xrange(i, i+10)
             )
             cur.execute(sql)
-
         assert len(conn.notices) == 50, len(conn.notices)
         assert "table50" in conn.notices[0]
         assert "table51" in conn.notices[1]

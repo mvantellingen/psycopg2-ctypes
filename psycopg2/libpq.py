@@ -10,9 +10,11 @@ libpq = cdll.LoadLibrary(path)
 
 
 class PGconn(Structure):
+    _fields_ = []
     pass
 
 class PGresult(Structure):
+    _fields_ = []
     pass
 
 CONNECTION_OK = 0
@@ -46,6 +48,7 @@ DIAG_SOURCE_LINE = ord('L')
 PG_DIAG_SOURCE_FUNCTION = ord('R')
 
 class PGnotify(Structure):
+    _fields_ = []
     pass
 
 
