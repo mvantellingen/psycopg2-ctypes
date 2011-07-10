@@ -1,3 +1,5 @@
+import ctypes
+from ctypes.util import find_library
 from functools import wraps
 
 from psycopg2 import libpq
@@ -6,17 +8,28 @@ from psycopg2.cursor import Cursor
 from psycopg2.xid import Xid
 
 
+libc = ctypes.CDLL(find_library("c"))
+libc.malloc.argtypes = [ctypes.c_long]
+libc.malloc.restype = ctypes.c_void_p
+libc.free.argtypes = [ctypes.c_long]
+libc.free.restype = None
+
+
 def conn_notice_callback(notices_addr, message):
     notices = Notices.from_address(notices_addr)
-    new_message = libpq.cast(
-        libpq.create_string_buffer(message), libpq.c_char_p)
+
+    addr = libc.malloc(len(message) + 1)
+    ctypes.memmove(addr, message + '\0', len(message) + 1)
+    msg = libpq.c_void_p()
+    msg.value = addr
 
     if notices.stop == 50:
         idx = notices.start
-        notices.items[idx] = new_message
+        libc.free(notices.items[idx])
+        notices.items[idx] = msg
         notices.start = (notices.start + 1) % 50
     else:
-        notices.items[notices.stop] = new_message
+        notices.items[notices.stop] = msg
         notices.stop += 1
 
 
@@ -27,6 +40,7 @@ def check_closed(func):
             raise exceptions.InterfaceError("connection already closed")
         return func(self, *args, **kwargs)
     return wrapper
+
 
 def check_tpc(command):
     def decorator(func):
@@ -44,7 +58,7 @@ class Notices(libpq.Structure):
     _fields_ = [
         ('start', libpq.c_uint),
         ('stop', libpq.c_uint),
-        ('items', libpq.c_char_p * 50)
+        ('items', libpq.c_void_p * 50)
     ]
 
 
@@ -148,11 +162,11 @@ class Connection(object):
         if self._notices.stop == 50:
             notices = []
             for i in xrange(self._notices.start, self._notices.stop):
-                notices.append(self._notices.items[i])
+                notices.append(ctypes.string_at(self._notices.items[i]))
             for i in xrange(self._notices.start):
-                notices.append(self._notices.items[i])
+                notices.append(ctypes.string_at(self._notices.items[i]))
             return notices
-        return [self._notices.items[i] for i in xrange(self._notices.stop)]
+        return [ctypes.string_at(self._notices.items[i]) for i in xrange(self._notices.stop)]
 
     @check_closed
     def xid(self, format_id, gtrid, bqual):
