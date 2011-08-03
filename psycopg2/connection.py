@@ -85,7 +85,7 @@ class Connection(object):
         self._notices = None
 
         # Connect
-        self._pgconn = libpq.PQconnectdb(self.dsn)
+        self._pgconn = libpq.PQconnectdb(dsn)
         if not self._pgconn:
             raise exceptions.OperationalError('pgconnectdb() failed')
         elif libpq.PQstatus(self._pgconn) != libpq.CONNECTION_OK:
@@ -320,21 +320,22 @@ class Connection(object):
 def connect(dsn=None, database=None, host=None, port=None, user=None,
             password=None):
     if dsn is None:
-        dsn = ""
+        args = []
         if database is not None:
-            dsn += "dbname=%s" % database
+            args.append('dbname=%s' % database)
         if host is not None:
-            dsn += " host=%s" % host
+            args.append('host=%s' % host)
         if port is not None:
             if isinstance(port, str):
                 port = int(port)
 
             if not isinstance(port, int):
                 raise TypeError("port must be a string or int")
-            dsn += " port=%d" % port
+            args.append('port=%d' % port)
         if user is not None:
-            dsn += " user=%s" % user
+            args.append('user=%s' % user)
         if password is not None:
-            dsn += " password=%s" % password
+            args.append('password=%s' % password)
+        dsn = ' '.join(args)
     return Connection(dsn)
 
