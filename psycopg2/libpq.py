@@ -8,20 +8,21 @@ if not path:
 libpq = cdll.LoadLibrary(path)
 
 
-
 class PGconn(Structure):
     _fields_ = []
-    pass
+
+PGconn_p = POINTER(PGconn)
+
 
 class PGresult(Structure):
     _fields_ = []
-    pass
+
+PGresult_p = POINTER(PGresult)
 
 CONNECTION_OK = 0
 CONNECTION_BAD = 1
 
 ConnStatusType = c_int
-
 
 PGRES_EMPTY_QUERY = 0
 PGRES_COMMAND_OK = 1
@@ -47,21 +48,20 @@ PG_DIAG_SOURCE_FILE = ord('F')
 DIAG_SOURCE_LINE = ord('L')
 PG_DIAG_SOURCE_FUNCTION = ord('R')
 
+
 class PGnotify(Structure):
-    _fields_ = []
     pass
 
 
 PQnoticeProcessor = CFUNCTYPE(None, c_void_p, c_char_p)
 
 
-
 PQconnectdb = libpq.PQconnectdb
 PQconnectdb.argtypes = [c_char_p]
-PQconnectdb.restype = POINTER(PGconn)
+PQconnectdb.restype = PGconn_p
 
 PQfinish = libpq.PQfinish
-PQfinish.argtypes = [POINTER(PGconn)]
+PQfinish.argtypes = [PGconn_p]
 PQfinish.restype = None
 
 PQclear = libpq.PQclear
@@ -73,20 +73,20 @@ PQfreemem.argtypes = [c_void_p]
 PQfreemem.restype = None
 
 PQdb = libpq.PQdb
-PQdb.argtypes = [POINTER(PGconn)]
+PQdb.argtypes = [PGconn_p]
 PQdb.restype = c_char_p
 
 PQerrorMessage = libpq.PQerrorMessage
-PQerrorMessage.argtypes = [POINTER(PGconn)]
+PQerrorMessage.argtypes = [PGconn_p]
 PQerrorMessage.restype = c_char_p
 
 PQparameterStatus = libpq.PQparameterStatus
-PQparameterStatus.argtypes = [POINTER(PGconn), c_char_p]
+PQparameterStatus.argtypes = [PGconn_p, c_char_p]
 PQparameterStatus.restype = c_char_p
 
 PQescapeStringConn = libpq.PQescapeStringConn
 PQescapeStringConn.restype = c_uint
-PQescapeStringConn.argtypes = [POINTER(PGconn), c_char_p, c_char_p, c_uint, POINTER(c_int)]
+PQescapeStringConn.argtypes = [PGconn_p, c_char_p, c_char_p, c_uint, POINTER(c_int)]
 
 PQescapeString = libpq.PQescapeString
 PQescapeString.restype = c_uint
@@ -97,7 +97,7 @@ PQescapeBytea.argtypes = [c_char_p, c_uint, POINTER(c_uint)]
 PQescapeBytea.restype = POINTER(c_char)
 
 PQescapeByteaConn = libpq.PQescapeByteaConn
-PQescapeByteaConn.argtypes = [POINTER(PGconn), c_char_p, c_uint, POINTER(c_uint)]
+PQescapeByteaConn.argtypes = [PGconn_p, c_char_p, c_uint, POINTER(c_uint)]
 PQescapeByteaConn.restype = POINTER(c_char)
 
 PQunescapeBytea = libpq.PQunescapeBytea
@@ -105,73 +105,73 @@ PQunescapeBytea.argtypes = [POINTER(c_char), POINTER(c_uint)]
 PQunescapeBytea.restype = POINTER(c_char)
 
 PQexec = libpq.PQexec
-PQexec.argtypes = [POINTER(PGconn), c_char_p]
+PQexec.argtypes = [PGconn_p, c_char_p]
 PQexec.restype = POINTER(PGresult)
 
 PQresultStatus = libpq.PQresultStatus
-PQresultStatus.argtypes = [POINTER(PGresult)]
+PQresultStatus.argtypes = [PGresult_p]
 PQresultStatus.restype = ExecStatusType
 
 PQresultErrorMessage = libpq.PQresultErrorMessage
-PQresultErrorMessage.argtypes = [POINTER(PGresult)]
+PQresultErrorMessage.argtypes = [PGresult_p]
 PQresultErrorMessage.restype = c_char_p
 
 PQresultErrorField = libpq.PQresultErrorField
-PQresultErrorField.argtypes = [POINTER(PGresult), c_int]
+PQresultErrorField.argtypes = [PGresult_p, c_int]
 PQresultErrorField.restype = c_char_p
 
 PQsetNoticeProcessor = libpq.PQsetNoticeProcessor
 PQsetNoticeProcessor.restype = PQnoticeProcessor
-PQsetNoticeProcessor.argtypes = [POINTER(PGconn), PQnoticeProcessor, c_void_p]
+PQsetNoticeProcessor.argtypes = [PGconn_p, PQnoticeProcessor, c_void_p]
 
 PQcmdStatus = libpq.PQcmdStatus
-PQcmdStatus.argtypes = [POINTER(PGresult)]
+PQcmdStatus.argtypes = [PGresult_p]
 PQcmdStatus.restype = c_char_p
 
 PQcmdTuples = libpq.PQcmdTuples
-PQcmdTuples.argtypes = [POINTER(PGresult)]
+PQcmdTuples.argtypes = [PGresult_p]
 PQcmdTuples.restype = c_char_p
 
 PQntuples = libpq.PQntuples
-PQntuples.argtypes = [POINTER(PGresult)]
+PQntuples.argtypes = [PGresult_p]
 PQntuples.restype = c_int
 
 PQnfields = libpq.PQnfields
-PQnfields.argtypes = [POINTER(PGresult)]
+PQnfields.argtypes = [PGresult_p]
 PQnfields.restype = c_int
 
 PQfname = libpq.PQfname
-PQfname.argtypes = [POINTER(PGresult)]
+PQfname.argtypes = [PGresult_p]
 PQfname.restype = c_char_p
 
 PQftype = libpq.PQftype
-PQftype.argtypes = [POINTER(PGresult)]
+PQftype.argtypes = [PGresult_p]
 PQftype.restype = c_uint
 
 PQuser = libpq.PQuser
-PQuser.argtypes = [POINTER(PGconn)]
+PQuser.argtypes = [PGconn_p]
 PQuser.restype = c_char_p
 
 PQstatus = libpq.PQstatus
-PQstatus.argtypes = [POINTER(PGconn)]
+PQstatus.argtypes = [PGconn_p]
 PQstatus.restype = ConnStatusType
 
 PQtransactionStatus = libpq.PQtransactionStatus
-PQtransactionStatus.argtypes = [POINTER(PGconn)]
+PQtransactionStatus.argtypes = [PGconn_p]
 PQtransactionStatus.restype = c_int
 
 PQgetisnull = libpq.PQgetisnull
-PQgetisnull.argtypes = [POINTER(PGresult), c_int, c_int]
+PQgetisnull.argtypes = [PGresult_p, c_int, c_int]
 PQgetisnull.restype = c_int
 
 PQgetlength = libpq.PQgetlength
-PQgetlength.argtypes = [POINTER(PGresult), c_int, c_int]
+PQgetlength.argtypes = [PGresult_p, c_int, c_int]
 PQgetlength.restype = c_int
 
 PQgetvalue = libpq.PQgetvalue
-PQgetvalue.argtypes = [POINTER(PGresult), c_int, c_int]
+PQgetvalue.argtypes = [PGresult_p, c_int, c_int]
 PQgetvalue.restype = c_char_p
 
 PQoidValue = libpq.PQoidValue
-PQoidValue.argtypes = [POINTER(PGresult)]
+PQoidValue.argtypes = [PGresult_p]
 PQoidValue.restype = c_uint
