@@ -7,12 +7,11 @@ from psycopg2.cursor import Cursor
 from psycopg2.xid import Xid
 
 
-
 def check_closed(func):
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         if self.closed:
-            raise exceptions.InterfaceError("connection already closed")
+            raise exceptions.InterfaceError('connection already closed')
         return func(self, *args, **kwargs)
     return wrapper
 
@@ -23,18 +22,10 @@ def check_tpc(command):
         def wrapper(self, *args, **kwargs):
             if self._tpc_xid:
                 raise exceptions.ProgrammingError(
-                    "%s cannot be used during a two-phase transaction" % command)
+                    '%s cannot be used during a two-phase transaction' % command)
             return func(self, *args, **kwargs)
         return wrapper
     return decorator
-
-
-class Notices(libpq.Structure):
-    _fields_ = [
-        ('start', libpq.c_uint),
-        ('stop', libpq.c_uint),
-        ('items', libpq.c_void_p * 50)
-    ]
 
 
 class Connection(object):
@@ -99,7 +90,7 @@ class Connection(object):
     @check_closed
     def set_isolation_level(self, level):
         if level < 0 or level > 2:
-            raise ValueError("isolation level must be between 0 and 2")
+            raise ValueError('isolation level must be between 0 and 2')
         if self.isolation_level == level:
             return
         if self.isolation_level != self.ISOLATION_LEVEL_AUTOCOMMIT:
@@ -114,20 +105,20 @@ class Connection(object):
 
     @check_closed
     def set_client_encoding(self, encoding):
-        encoding = "".join([c for c in encoding if c != "-" and c != "_"])
+        encoding = ''.join([c for c in encoding if c != '-' and c != '_'])
         if self.encoding == encoding:
             return
         self._rollback()
-        self._execute_command("SET client_encoding = %s" % encoding)
+        self._execute_command('SET client_encoding = %s' % encoding)
         self.encoding = encoding
 
     def get_exc_type_for_state(self, code):
         exc_type = None
-        if code[0] == "2":
-            if code[1] == "3":
+        if code[0] == '2':
+            if code[1] == '3':
                 exc_type = exceptions.IntegrityError
-        elif code[0] == "4":
-            if code[1] == "2":
+        elif code[0] == '4':
+            if code[1] == '2':
                 exc_type = exceptions.ProgrammingError
         return exc_type
 
@@ -147,7 +138,7 @@ class Connection(object):
     def tpc_begin(self, xid):
         if self.status != self.CONN_STATUS_READY:
             raise exceptions.ProgrammingError(
-                "tpc_begin must be called outside a transaction")
+                'tpc_begin must be called outside a transaction')
 
         if self.isolation_level == self.ISOLATION_LEVEL_AUTOCOMMIT:
             raise exceptions.ProgrammingError(
@@ -158,18 +149,17 @@ class Connection(object):
 
     @check_closed
     def tpc_commit(self):
-        self._finish_tpc("COMMIT PREPARED", "commit")
+        self._finish_tpc('COMMIT PREPARED', 'commit')
 
     @check_closed
     def tpc_rollback(self):
-        self._finish_tpc("ROLLBACK PREPARED", "abort")
+        self._finish_tpc('ROLLBACK PREPARED', 'abort')
 
     @check_closed
     def tpc_prepare(self):
         if not self._tpc_xid:
             raise exceptions.ProgrammingError(
-                "prepare must be called inside a two-phase transaction")
-
+                'prepare must be called inside a two-phase transaction')
 
     def _setup(self):
         pgres = libpq.PQexec(self._pgconn, 'SHOW default_transaction_isolation')
@@ -220,29 +210,29 @@ class Connection(object):
         tid = QuotedString(tid)
         tid.prepare(self)
         tid = str(tid.quote())
-        cmd = "%s %s;" % (command, tid)
+        cmd = '%s %s;' % (command, tid)
         self._execute_command(cmd)
 
     def _finish_tpc(self, command, fallback):
 
         if not self._tpc_xid:
             raise exceptions.ProgrammingError(
-                "tpc_commit/tpc_rollback with no parameter must be "
-                "called in a two-phase transaction")
+                'tpc_commit/tpc_rollback with no parameter must be '
+                'called in a two-phase transaction')
 
         if self.status == self.CONN_STATUS_BEGIN:
-            if fallback == "commit":
+            if fallback == 'commit':
                 self._commit()
-            elif fallback == "abort":
+            elif fallback == 'abort':
                 self._rollback()
             else:
                 raise exceptions.InternalError(
-                    "bad fallback passed to finish_tpc")
+                    'bad fallback passed to finish_tpc')
         elif self.status == self.CONN_STATUS_PREPARED:
             self._execute_tpc_command(command)
         else:
             raise exceptions.InterfaceError(
-                "unexpected state in tpc_commit/tpc_rollback")
+                'unexpected state in tpc_commit/tpc_rollback')
 
         self.status = self.CONN_STATUS_READY
         self._tpc_xid = None
@@ -253,22 +243,20 @@ class Connection(object):
         if self._pgconn:
             libpq.PQfinish(self._pgconn)
             self._pgconn = None
-
-        if self._notices:
-            self._notices = None
+        self._notices = None
 
     def _commit(self):
         if (self.isolation_level == self.ISOLATION_LEVEL_AUTOCOMMIT or
             self.status != self.CONN_STATUS_BEGIN):
             return
-        self._execute_command("COMMIT")
+        self._execute_command('COMMIT')
         self.status = self.CONN_STATUS_READY
 
     def _rollback(self):
         if (self.isolation_level == self.ISOLATION_LEVEL_AUTOCOMMIT or
             self.status != self.CONN_STATUS_BEGIN):
             return
-        self._execute_command("ROLLBACK")
+        self._execute_command('ROLLBACK')
         self.status = self.CONN_STATUS_READY
 
     def _raise_operational_error(self, pgres):
@@ -301,7 +289,7 @@ def connect(dsn=None, database=None, host=None, port=None, user=None,
                 port = int(port)
 
             if not isinstance(port, int):
-                raise TypeError("port must be a string or int")
+                raise TypeError('port must be a string or int')
             args.append('port=%d' % port)
         if user is not None:
             args.append('user=%s' % user)
