@@ -1,36 +1,11 @@
-import ctypes
-from ctypes.util import find_library
 from functools import wraps
+from collections import deque
 
 from psycopg2 import libpq
 from psycopg2 import exceptions
 from psycopg2.cursor import Cursor
 from psycopg2.xid import Xid
 
-
-libc = ctypes.CDLL(find_library("c"))
-libc.malloc.argtypes = [ctypes.c_long]
-libc.malloc.restype = ctypes.c_void_p
-libc.free.argtypes = [ctypes.c_long]
-libc.free.restype = None
-
-
-def conn_notice_callback(notices_addr, message):
-    notices = Notices.from_address(notices_addr)
-
-    addr = libc.malloc(len(message) + 1)
-    ctypes.memmove(addr, message + '\0', len(message) + 1)
-    msg = libpq.c_void_p()
-    msg.value = addr
-
-    if notices.stop == 50:
-        idx = notices.start
-        libc.free(notices.items[idx])
-        notices.items[idx] = msg
-        notices.start = (notices.start + 1) % 50
-    else:
-        notices.items[notices.stop] = msg
-        notices.stop += 1
 
 
 def check_closed(func):
@@ -92,11 +67,14 @@ class Connection(object):
             error_msg = libpq.PQerrorMessage(self._pgconn)
             raise exceptions.OperationalError(error_msg)
 
-        # Set the notices processor
-        self._notices = Notices(start=0, stop=0)
-        self._notice_callback = libpq.PQnoticeProcessor(conn_notice_callback)
-        libpq.PQsetNoticeProcessor(self._pgconn, self._notice_callback,
-            libpq.byref(self._notices))
+        self._notices = deque(maxlen=50)
+
+        def save_notice(message, notices):
+            notices.append(message)
+
+        self._notice_callback = libpq.PQnoticeProcessor(
+            lambda arg, message: save_notice(message, self._notices))
+        libpq.PQsetNoticeProcessor(self._pgconn, self._notice_callback, None)
 
         # Setup the connection
         self._setup()
@@ -159,14 +137,7 @@ class Connection(object):
 
     @property
     def notices(self):
-        if self._notices.stop == 50:
-            notices = []
-            for i in xrange(self._notices.start, self._notices.stop):
-                notices.append(ctypes.string_at(self._notices.items[i]))
-            for i in xrange(self._notices.start):
-                notices.append(ctypes.string_at(self._notices.items[i]))
-            return notices
-        return [ctypes.string_at(self._notices.items[i]) for i in xrange(self._notices.stop)]
+        return self._notices
 
     @property
     def closed(self):
