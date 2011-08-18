@@ -141,11 +141,11 @@ PQnfields.argtypes = [PGresult_p]
 PQnfields.restype = c_int
 
 PQfname = libpq.PQfname
-PQfname.argtypes = [PGresult_p]
+PQfname.argtypes = [PGresult_p, c_int]
 PQfname.restype = c_char_p
 
 PQftype = libpq.PQftype
-PQftype.argtypes = [PGresult_p]
+PQftype.argtypes = [PGresult_p, c_int]
 PQftype.restype = c_uint
 
 PQuser = libpq.PQuser
