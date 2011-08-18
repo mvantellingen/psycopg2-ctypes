@@ -57,7 +57,7 @@ class Connection(object):
         self._closed = True
         self._typecasts = {}
         self._tpc_xid = None
-        self._notices = None
+        self._notices = deque(maxlen=50)
 
         # Connect
         self._pgconn = libpq.PQconnectdb(dsn)
@@ -67,13 +67,9 @@ class Connection(object):
             error_msg = libpq.PQerrorMessage(self._pgconn)
             raise exceptions.OperationalError(error_msg)
 
-        self._notices = deque(maxlen=50)
-
-        def save_notice(message, notices):
-            notices.append(message)
-
+        # Register notice processor
         self._notice_callback = libpq.PQnoticeProcessor(
-            lambda arg, message: save_notice(message, self._notices))
+            lambda arg, message: self._notices.append(message))
         libpq.PQsetNoticeProcessor(self._pgconn, self._notice_callback, None)
 
         # Setup the connection
