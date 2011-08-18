@@ -106,7 +106,7 @@ PQunescapeBytea.restype = POINTER(c_char)
 
 PQexec = libpq.PQexec
 PQexec.argtypes = [PGconn_p, c_char_p]
-PQexec.restype = POINTER(PGresult)
+PQexec.restype = PGresult_p
 
 PQresultStatus = libpq.PQresultStatus
 PQresultStatus.argtypes = [PGresult_p]
@@ -121,8 +121,8 @@ PQresultErrorField.argtypes = [PGresult_p, c_int]
 PQresultErrorField.restype = c_char_p
 
 PQsetNoticeProcessor = libpq.PQsetNoticeProcessor
-PQsetNoticeProcessor.restype = PQnoticeProcessor
 PQsetNoticeProcessor.argtypes = [PGconn_p, PQnoticeProcessor, c_void_p]
+PQsetNoticeProcessor.restype = PQnoticeProcessor
 
 PQcmdStatus = libpq.PQcmdStatus
 PQcmdStatus.argtypes = [PGresult_p]
