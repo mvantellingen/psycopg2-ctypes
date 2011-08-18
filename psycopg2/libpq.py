@@ -105,7 +105,7 @@ PQunescapeBytea.argtypes = [POINTER(c_char), POINTER(c_uint)]
 PQunescapeBytea.restype = POINTER(c_char)
 
 PQexec = libpq.PQexec
-PQexec.argtypes = [POINTER(PGconn)]
+PQexec.argtypes = [POINTER(PGconn), c_char_p]
 PQexec.restype = POINTER(PGresult)
 
 PQresultStatus = libpq.PQresultStatus
