@@ -168,6 +168,10 @@ class Connection(object):
             return notices
         return [ctypes.string_at(self._notices.items[i]) for i in xrange(self._notices.stop)]
 
+    @property
+    def closed(self):
+        return self._closed
+
     @check_closed
     def xid(self, format_id, gtrid, bqual):
         return Xid(format_id, gtrid, bqual)
@@ -216,7 +220,7 @@ class Connection(object):
         client_encoding = libpq.PQparameterStatus(self._pgconn, 'client_encoding')
         self.encoding = client_encoding.upper()
 
-        self.closed = False
+        self._closed = False
         self.status = self.CONN_STATUS_READY
 
     def _begin_transaction(self):
@@ -277,7 +281,7 @@ class Connection(object):
         self._tpc_xid = None
 
     def _close(self):
-        self.closed = True
+        self._closed = True
 
         if self._pgconn:
             libpq.PQfinish(self._pgconn)
