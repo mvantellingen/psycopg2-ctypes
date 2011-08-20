@@ -1,4 +1,5 @@
 from functools import wraps
+import collections
 
 from psycopg2 import extensions, libpq, tz
 from psycopg2.adapters import quote
@@ -88,17 +89,26 @@ class Cursor(object):
 
     @check_closed
     def execute(self, query, parameters=None):
+        """Execute the given query after combining the query and parameters.
+
+        """
         self._description = None
+        conn = self._connection
 
         if isinstance(query, unicode):
             encoding = extensions.encodings[self._connection.encoding]
             query = query.encode(encoding)
 
-        self._query = self._combine_query_params(query, parameters)
-        conn = self._connection
+        if parameters is not None:
+            self._query = _combine_cmd_params(query, parameters, conn)
+        else:
+            self._query = query
+
         conn._begin_transaction()
         self._clear_pgres()
-        self._pgres = libpq.PQexec(conn._pgconn, str(self._query))
+
+        self._pgres = libpq.PQexec(conn._pgconn, self._query)
+
         if not self._pgres:
             conn._raise_operational_error(self._pgres)
 
@@ -175,7 +185,7 @@ class Cursor(object):
         return parameters
 
     def mogrify(self, query, vars=None):
-        return self._combine_query_params(query, vars)
+        return _combine_cmd_params(query, vars, self._connection)
 
     @check_closed
     @check_no_tuples
@@ -233,49 +243,6 @@ class Cursor(object):
             libpq.PQclear(self._pgres)
             self._pgres = None
 
-    def _combine_query_params(self, query, parameters):
-        converted_params = None
-        params_tuple = True
-        index = 0
-        idx = 0
-        while idx < len(query):
-            if query[idx] == "%" and query[idx+1] == "%":
-                idx += 1
-            elif query[idx] == "%" and query[idx + 1] == "(":
-                end = query.find(")", idx)
-                if end < 0:
-                    idx += 1
-                    continue
-                key = query[idx+2:end]
-                value = parameters.get(key)
-                if converted_params is None:
-                    converted_params = {}
-                converted_params[key] = quote(value, self._connection)
-                params_tuple = False
-                idx = end
-            elif query[idx] == "%":
-                value = parameters[index]
-                if converted_params is None:
-                    converted_params = [None] * len(parameters)
-                converted_params[index] = quote(value, self._connection)
-                index += 1
-                idx += 1
-            idx += 1
-        if converted_params is None:
-            converted_params = tuple()
-        elif params_tuple:
-            converted_params = tuple(converted_params)
-
-        try:
-            return query % converted_params
-        except (TypeError, ValueError), e:  # PyPy raises a ValueError
-            msg = e.message
-            if msg == "not all arguments converted during string formatting":
-                raise ProgrammingError()
-            # TODO: catch some TypeError's and transform them into
-            # ProgrammingErrors
-            return query
-
     def _build_row(self, row_num):
         n = self._nfields
         row = []
@@ -289,4 +256,78 @@ class Cursor(object):
 
             row.append(val)
         return tuple(row)
+
+
+def _combine_cmd_params(cmd, params, conn):
+    """Combine the command string and params"""
+    idx = 0
+    param_num = 0
+    arg_values = None
+    named_args_format = None
+
+    def check_format_char(format_char, pos):
+        """Raise an exception when the format_char is unsupported"""
+        if format_char != 's':
+            raise ValueError(
+                "unsupported format character '%s' (0x%x) at index %d" %
+                (format_char, ord(format_char), pos))
+
+
+    while idx < len(cmd):
+
+        # Escape
+        if cmd[idx] == '%' and cmd[idx + 1] == '%':
+            idx += 1
+
+        # Named parameters
+        elif cmd[idx] == '%' and cmd[idx + 1] == '(':
+
+            # Validate that we don't mix formats
+            if named_args_format is False:
+                raise ValueError("argument formats can't be mixed")
+            elif named_args_format is None:
+                named_args_format = True
+
+            # Check for incomplate placeholder
+            max_lookahead = cmd.find('%', idx + 2)
+            end = cmd.find(')', idx + 2, max_lookahead)
+            if end < 0:
+                raise ProgrammingError("incomplete placeholder: '%(' without ')'")
+
+            key = cmd[idx + 2:end]
+            if arg_values is None:
+                arg_values = {}
+            if key not in arg_values:
+                arg_values[key] = quote(params[key], conn)
+
+            check_format_char(cmd[end + 1], idx)
+
+        # Indexed parameters
+        elif cmd[idx] == '%':
+
+            # Validate that we don't mix formats
+            if named_args_format is True:
+                raise ValueError("argument formats can't be mixed")
+            elif named_args_format is None:
+                named_args_format = False
+
+            check_format_char(cmd[idx + 1], idx)
+
+            if arg_values is None:
+                arg_values = []
+
+            value = quote(params[param_num], conn)
+            arg_values.append(value)
+
+            param_num += 1
+            idx += 1
+
+        idx += 1
+
+    if named_args_format is False:
+        if len(arg_values) != len(params):
+            raise TypeError("not all arguments converted during string formatting")
+        arg_values = tuple(arg_values)
+
+    return cmd % arg_values
 
