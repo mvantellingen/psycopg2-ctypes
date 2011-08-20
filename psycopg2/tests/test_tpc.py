@@ -4,6 +4,8 @@ from psycopg2.tests.test_base import TestBase
 class TestTPC(TestBase):
 
     def setUp(self):
+        super(TestTPC, self).setUp()
+
         if not hasattr(type(self), "_last_id"):
             type(self)._last_id = 0
         cur_id = self._last_id
