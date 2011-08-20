@@ -650,7 +650,7 @@ class TestCursor(TestBase):
         conn = self.connect()
         cur = conn.cursor()
 
-        with self.assertRaises(psycopg2.ProgrammingError):
+        with self.assertRaises(TypeError):
             cur.execute("SELECT %s", (1, 2))
         with self.assertRaises(IndexError):
             cur.execute( "SELECT %s, %s", (1,))
