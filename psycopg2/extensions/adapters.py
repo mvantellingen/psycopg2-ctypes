@@ -6,6 +6,7 @@ from psycopg2.exceptions import ProgrammingError
 
 adapters = {}
 
+
 def register_adapter(cls, adapter):
     adapters[cls] = adapter
 
@@ -89,7 +90,7 @@ class QuotedString(BaseAdapter):
             self.encoding = self.connection.encoding
 
     def quote(self):
-        from psycopg2 import types
+        from psycopg2.extensions import types
 
         obj = self.obj
         if isinstance(obj, unicode):

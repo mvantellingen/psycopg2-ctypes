@@ -291,7 +291,7 @@ def cast_interval(value, length, cursor):
 
 
 def Date(year, month, day):
-    from psycopg2.adapters import DateTime
+    from psycopg2.extensions.adapters import DateTime
     date = datetime.date(year, month, day)
     return DateTime(date)
 
@@ -302,5 +302,5 @@ def DateFromTicks(ticks):
 
 
 def Binary(obj):
-    from psycopg2.adapters import Binary
+    from psycopg2.extensions.adapters import Binary
     return Binary(obj)

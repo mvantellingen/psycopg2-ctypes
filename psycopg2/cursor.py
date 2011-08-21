@@ -2,8 +2,8 @@ from functools import wraps
 import collections
 
 from psycopg2 import extensions, libpq, tz
-from psycopg2.adapters import quote
 from psycopg2.exceptions import InterfaceError, ProgrammingError
+from psycopg2.extensions.adapters import quote
 
 
 def check_closed(func):

@@ -1,7 +1,7 @@
 import decimal
 
-from psycopg2.adapters import *
-from psycopg2.types import *
+from psycopg2.extensions.adapters import *
+from psycopg2.extensions.types import *
 
 
 ISOLATION_LEVEL_AUTOCOMMIT = 0
