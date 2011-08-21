@@ -113,6 +113,10 @@ class TestCursor(TestBase):
         cur = conn.cursor()
         self.assertEqual(conn.encoding, 'UTF8')
         cur.execute(self.ddl4)
+        cur.execute("""
+            SELECT m\xc3\xa9il, \xe6\xb8\xac\xe8\xa9\xa6
+            FROM unicode ORDER BY m\xc3\xa9il DESC
+        """)
         cur.execute(self.xddl4)
         conn.close()
 
