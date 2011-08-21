@@ -2,9 +2,9 @@
 from ctypes import *
 from ctypes.util import find_library
 
-path = find_library('libpq')
+path = find_library('pq')
 if not path:
-    path = '/opt/local/lib/postgresql90/libpq.dylib'
+    raise ImportError('Could not find postgresql client library.')
 libpq = cdll.LoadLibrary(path)
 
 
