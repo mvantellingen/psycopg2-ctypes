@@ -99,16 +99,15 @@ class QuotedString(BaseAdapter):
         string = str(obj)
         length = len(string)
 
-        # XXX: validate this
-        to = libpq.create_string_buffer('\0', (length * 2) + 1)
-        err = libpq.c_int()
-
-        if self.connection is not None:
-            libpq.PQescapeStringConn(
-                self.connection._pgconn, to, string, length, err)
-        else:
+        if not self.connection:
+            to = libpq.create_string_buffer('\0', (length * 2) + 1)
             libpq.PQescapeString(to, string, length)
-        return "E'%s'" % to.value
+            return "E'%s'" % to.value
+
+        data_pointer = libpq.PQescapeLiteral(
+            self.connection._pgconn, string, length)
+        data = libpq.cast(data_pointer, libpq.c_char_p)
+        return data.value
 
 
 class AsIs(BaseAdapter):

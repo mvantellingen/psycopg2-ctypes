@@ -89,8 +89,12 @@ PQescapeStringConn.restype = c_uint
 PQescapeStringConn.argtypes = [PGconn_p, c_char_p, c_char_p, c_uint, POINTER(c_int)]
 
 PQescapeString = libpq.PQescapeString
-PQescapeString.restype = c_uint
 PQescapeString.argtypes = [c_char_p, c_char_p, c_uint]
+PQescapeString.restype = c_uint
+
+PQescapeLiteral = libpq.PQescapeLiteral
+PQescapeLiteral.argtypes = [PGconn_p, c_char_p, c_uint]
+PQescapeLiteral.restype = POINTER(c_char)
 
 PQescapeBytea = libpq.PQescapeBytea
 PQescapeBytea.argtypes = [c_char_p, c_uint, POINTER(c_uint)]
