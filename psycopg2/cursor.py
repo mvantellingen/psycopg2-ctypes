@@ -1,5 +1,4 @@
 from functools import wraps
-import collections
 
 from psycopg2 import extensions, libpq, tz
 from psycopg2.exceptions import InterfaceError, ProgrammingError
