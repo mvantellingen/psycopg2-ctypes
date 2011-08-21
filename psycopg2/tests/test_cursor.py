@@ -476,6 +476,17 @@ class TestCursor(TestBase):
 
         conn.close()
 
+    def test_unicode_blank(self):
+        import psycopg2
+
+        conn = self.connect()
+        cur = conn.cursor()
+        conn.set_client_encoding("UNICODE")
+        psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
+        cur.execute("select %s::text", (u'',))
+        r, = cur.fetchone()
+        conn.close()
+
     def test_unicode_quoting_more(self):
         import psycopg2
 
@@ -692,6 +703,7 @@ class TestCursor(TestBase):
         assert cur.name is None
 
         conn.close()
+
 
 class AppTestServerSideCursor(TestBase):
     def test_name_attr(self):

@@ -99,7 +99,8 @@ class QuotedString(BaseAdapter):
         string = str(obj)
         length = len(string)
 
-        to = libpq.create_string_buffer('\0', length * 2)
+        # XXX: validate this
+        to = libpq.create_string_buffer('\0', (length * 2) + 1)
         err = libpq.c_int()
 
         if self.connection is not None:
