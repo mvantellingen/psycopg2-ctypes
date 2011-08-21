@@ -657,6 +657,26 @@ class TestCursor(TestBase):
 
         conn.close()
 
+
+    def test_percentage_in_text(self):
+        import psycopg2
+
+        tests = [
+            ("select 6 %% 10", 6),
+            ("select 17 %% 10", 7),
+            ("select '%%'", '%'),
+            ("select '%%%%'", '%%'),
+            ("select '%%%%%%'", '%%%'),
+            ("select 'hello %% world'", "hello % world")]
+
+        conn = self.connect()
+        cur = conn.cursor()
+        for expr, result in tests:
+            cur.execute(expr, {})
+            value = cur.fetchone()[0]
+            self.assertEqual(value, result)
+
+
     def test_connection_attr(self):
         conn = self.connect()
         cur = conn.cursor()

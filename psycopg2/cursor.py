@@ -266,7 +266,7 @@ def _combine_cmd_params(cmd, params, conn):
 
     def check_format_char(format_char, pos):
         """Raise an exception when the format_char is unsupported"""
-        if format_char != 's':
+        if format_char not in 's ':
             raise ValueError(
                 "unsupported format character '%s' (0x%x) at index %d" %
                 (format_char, ord(format_char), pos))
@@ -329,6 +329,6 @@ def _combine_cmd_params(cmd, params, conn):
         arg_values = tuple(arg_values)
 
     if not arg_values:
-        return cmd
+        return cmd % tuple()  # Required to unescape % chars
     return cmd % arg_values
 
