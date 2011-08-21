@@ -143,20 +143,18 @@ class Binary(BaseAdapter):
     def quote(self):
         to_length = libpq.c_uint()
 
-        if self.connection is None:
-            raw_escaped = libpq.PQescapeBytea(self.obj, len(self.obj),
-                libpq.pointer(to_length))
-
-        else:
-            raw_escaped = libpq.PQescapeByteaConn(self.connection._pgconn,
+        if self.connection:
+            data_pointer = libpq.PQescapeByteaConn(self.connection._pgconn,
                 str(self.obj), len(self.obj), libpq.pointer(to_length))
+            template = r"E'%s'::bytea"
+        else:
+            data_pointer = libpq.PQescapeBytea(self.obj, len(self.obj),
+                libpq.pointer(to_length))
+            template = r"'%s'::bytea"
 
-        escaped = raw_escaped[:to_length.value - 1]
-        libpq.PQfreemem(raw_escaped)
-        res = "'%s'::bytea" % escaped
-        if self.connection is not None:
-            res = "E" + res
-        return res
+        data = data_pointer[:to_length.value - 1]
+        libpq.PQfreemem(data_pointer)
+        return template % data
 
 
 class List(BaseAdapter):
