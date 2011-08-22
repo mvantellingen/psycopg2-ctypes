@@ -1,0 +1,1 @@
+This is a port of Alex Gaynor's rpython port (https://bitbucket.org/alex_gaynor/pypy-postgresql/overview) of psycopg2 to python + ctypes.
