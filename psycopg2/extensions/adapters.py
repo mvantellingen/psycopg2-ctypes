@@ -106,8 +106,9 @@ class QuotedString(BaseAdapter):
 
         data_pointer = libpq.PQescapeLiteral(
             self.connection._pgconn, string, length)
-        data = libpq.cast(data_pointer, libpq.c_char_p)
-        return data.value
+        data = libpq.cast(data_pointer, libpq.c_char_p).value
+        libpq.PQfreemem(data_pointer)
+        return data
 
 
 class AsIs(BaseAdapter):
