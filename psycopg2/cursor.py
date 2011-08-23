@@ -296,7 +296,8 @@ def _combine_cmd_params(cmd, params, conn):
             max_lookahead = cmd.find('%', idx + 2)
             end = cmd.find(')', idx + 2, max_lookahead)
             if end < 0:
-                raise ProgrammingError("incomplete placeholder: '%(' without ')'")
+                raise ProgrammingError(
+                    "incomplete placeholder: '%(' without ')'")
 
             key = cmd[idx + 2:end]
             if arg_values is None:
@@ -330,7 +331,8 @@ def _combine_cmd_params(cmd, params, conn):
 
     if named_args_format is False:
         if len(arg_values) != len(params):
-            raise TypeError("not all arguments converted during string formatting")
+            raise TypeError(
+                "not all arguments converted during string formatting")
         arg_values = tuple(arg_values)
 
     if not arg_values:
