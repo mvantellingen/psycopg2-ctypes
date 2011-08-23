@@ -259,6 +259,11 @@ class Cursor(object):
 
 def _combine_cmd_params(cmd, params, conn):
     """Combine the command string and params"""
+
+    # Return when no argument binding is required
+    if '%' not in cmd:
+        return cmd
+
     idx = 0
     param_num = 0
     arg_values = None
