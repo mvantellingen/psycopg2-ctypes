@@ -276,8 +276,8 @@ def _combine_cmd_params(cmd, params, conn):
                 "unsupported format character '%s' (0x%x) at index %d" %
                 (format_char, ord(format_char), pos))
 
-
-    while idx < len(cmd):
+    cmd_length = len(cmd)
+    while idx < cmd_length:
 
         # Escape
         if cmd[idx] == '%' and cmd[idx + 1] == '%':
