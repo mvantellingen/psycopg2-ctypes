@@ -55,46 +55,47 @@ class parse_array(object):
         i = 1
         array = []
         stack = [array]
-        while i < len(s) - 1:
-            if s[i] == "{":
+        value_length = len(s) - 1
+        while i < value_length:
+            if s[i] == '{':
                 sub_array = []
                 array.append(sub_array)
                 stack.append(sub_array)
                 array = sub_array
                 i += 1
-            elif s[i] == "}":
+            elif s[i] == '}':
                 stack.pop()
                 array = stack[-1]
                 i += 1
-            elif s[i] == ",":
+            elif s[i] in ', ':
                 i += 1
             else:
                 start = i
-                # If q is odd this is quoted
-                q = 0
-                # Whether or not the last char was a backslash
-                b = False
-                while i < len(s) - 1:
+
+                # Number of quotes, this will always be 0 or 2 (int vs str)
+                quotes = 0
+
+                # Whether or not the next char should be escaped
+                escape_char = False
+
+                while i < value_length:
                     if s[i] == '"':
-                        if not b:
-                            q += 1
-                    elif s[i] == "\\":
-                        b = not b
-                    elif s[i] == "}" or s[i] == ",":
-                        if not b and q % 2 == 0:
+                        if not escape_char:
+                            quotes += 1
+                    elif s[i] == '\\':
+                        escape_char = not escape_char
+                    elif s[i] == '}' or s[i] == ',':
+                        if not escape_char and quotes % 2 == 0:
                             break
                     i += 1
-                if q:
+
+                if quotes:
                     start += 1
                     end = i - 1
                 else:
                     end = i
 
-                val = []
-                for j in xrange(start, end):
-                    if s[j] != "\\" or s[j - 1] == "\\":
-                        val.append(s[j])
-                str_buf = "".join(val)
+                str_buf = s[start:end].replace(r'\\', '\\')
                 val = typecast(self._caster, str_buf, end - start, cursor)
                 array.append(val)
         return stack[-1]
