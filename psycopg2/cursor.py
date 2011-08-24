@@ -457,7 +457,7 @@ class Cursor(object):
         """This read-only attribute provides the OID of the last row inserted
         by the cursor.
 
-        If the table wasn’t created with OID support or the last operation is
+        If the table wasn't created with OID support or the last operation is
         not a single record insert, the attribute is set to None.
 
         This is a Psycopg extension to the DB API 2.0
