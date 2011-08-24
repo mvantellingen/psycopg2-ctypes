@@ -2,10 +2,11 @@ from functools import wraps
 
 from psycopg2 import extensions, libpq, tz
 from psycopg2.exceptions import InterfaceError, ProgrammingError
-from psycopg2.extensions.adapters import quote
+from psycopg2.extensions.adapters import _getquoted
 
 
 def check_closed(func):
+    """Check if the connection is closed and raise an error"""
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         if self.closed:
@@ -303,7 +304,7 @@ def _combine_cmd_params(cmd, params, conn):
             if arg_values is None:
                 arg_values = {}
             if key not in arg_values:
-                arg_values[key] = quote(params[key], conn)
+                arg_values[key] = _getquoted(params[key], conn)
 
             check_format_char(cmd[end + 1], idx)
 
@@ -321,7 +322,7 @@ def _combine_cmd_params(cmd, params, conn):
             if arg_values is None:
                 arg_values = []
 
-            value = quote(params[param_num], conn)
+            value = _getquoted(params[param_num], conn)
             arg_values.append(value)
 
             param_num += 1

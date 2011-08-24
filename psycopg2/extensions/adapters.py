@@ -7,150 +7,105 @@ from psycopg2.exceptions import ProgrammingError
 adapters = {}
 
 
-def register_adapter(cls, adapter):
-    adapters[cls] = adapter
-
-
-def adapt(value):
-    adapted = None
-    try:
-        adapter = adapters[type(value)]
-    except KeyError:
-        superclass_adapter = get_superclass_adapter(value)
-        if superclass_adapter is not None:
-            adapted = superclass_adapter(value)
-        else:
-            conform = getattr(value, '__conform__', None)
-            if conform:
-                adapted = conform()
-            if adapted is None:
-                raise ProgrammingError("can't adapt type '%s'", type(value))
-    else:
-        adapted = adapter(value)
-    return adapted
-
-
-def get_superclass_adapter(value):
-    obj_type = type(value)
-    for subtype in obj_type.mro()[1:]:
-        try:
-            return adapters[subtype]
-        except KeyError:
-            pass
-    return None
-
-
-def quote(value, connection):
-    if value is None:
-        return 'NULL'
-
-    # TODO: there really should be some proto object, not sure what it is.
-    adapted = adapt(value)
-
-    prepare = getattr(adapted, 'prepare', None)
-    if prepare:
-        prepare(connection)
-    return adapted.getquoted()
-
-
-class BaseAdapter(object):
-    typedef = None
-
-    def __init__(self, obj):
-        self.obj = obj
-        self.buffer = None
-        self.connection = None
-
-    def prepare(self, connection):
-        self.connection = connection
-
-    def quote(self):
-        raise NotImplementedError
-
-    def __conform__(self):
-        return self
-
-    def getquoted(self):
-        if self.buffer is None:
-            self.buffer = self.quote()
-        return self.buffer
+class _BaseAdapter(object):
+    def __init__(self, wrapped_object):
+        self._wrapped = wrapped_object
+        self._conn = None
 
     def __str__(self):
         return self.getquoted()
 
 
-class QuotedString(BaseAdapter):
+class ISQLQuote(_BaseAdapter):
+    def getquoted(self):
+        pass
+
+
+class NoneAdapter(_BaseAdapter):
+    def prepare(self, conn):
+        pass
+
+    def getquoted(self):
+        return 'NULL'
+
+
+class QuotedString(_BaseAdapter):
     def __init__(self, obj):
-        BaseAdapter.__init__(self, obj)
+        super(QuotedString, self).__init__(obj)
         self.encoding = "latin-1"
 
-    def prepare(self, connection):
-        super(QuotedString, self).prepare(connection)
-        if isinstance(self.obj, unicode):
-            self.encoding = self.connection.encoding
+    def prepare(self, conn):
+        self._conn = conn
+        self.encoding = conn.encoding
 
-    def quote(self):
+    def getquoted(self):
         from psycopg2.extensions import types
 
-        obj = self.obj
-        if isinstance(obj, unicode):
+        obj = self._wrapped
+        if isinstance(self._wrapped, unicode):
             encoding = types.encodings[self.encoding]
             obj = obj.encode(encoding)
         string = str(obj)
         length = len(string)
 
-        if not self.connection:
+        if not self._conn:
             to = libpq.create_string_buffer('\0', (length * 2) + 1)
             libpq.PQescapeString(to, string, length)
             return "E'%s'" % to.value
 
         data_pointer = libpq.PQescapeLiteral(
-            self.connection._pgconn, string, length)
+            self._conn._pgconn, string, length)
         data = libpq.cast(data_pointer, libpq.c_char_p).value
         libpq.PQfreemem(data_pointer)
         return data
 
 
-class AsIs(BaseAdapter):
-    def quote(self):
-        return str(self.obj)
+class AsIs(_BaseAdapter):
+    def getquoted(self):
+        return str(self._wrapped)
 
 
-class Float(BaseAdapter):
-    def quote(self):
-        n = float(self.obj)
+class Float(ISQLQuote):
+    def getquoted(self):
+        n = float(self._wrapped)
         if math.isnan(n):
             return "'NaN'::float"
         elif math.isinf(n):
             return "'Infinity'::float"
         else:
-            return repr(self.obj)
+            return repr(self._wrapped)
 
 
-class Decimal(BaseAdapter):
-    def quote(self):
-        if self.obj.is_finite():
-            return str(self.obj)
+class Decimal(_BaseAdapter):
+    def getquoted(self):
+        if self._wrapped.is_finite():
+            return str(self._wrapped)
         return "'NaN'::numeric"
 
 
-class Boolean(BaseAdapter):
-    def quote(self):
-        return 'true' if self.obj else 'false'
+class Boolean(_BaseAdapter):
+    def getquoted(self):
+        return 'true' if self._wrapped else 'false'
 
 
-class Binary(BaseAdapter):
+class Binary(_BaseAdapter):
+    def prepare(self, connection):
+        self._conn = connection
 
-    def quote(self):
+    def __conform__(self):
+        return self
+
+    def getquoted(self):
         to_length = libpq.c_uint()
 
-        if self.connection:
-            data_pointer = libpq.PQescapeByteaConn(self.connection._pgconn,
-                str(self.obj), len(self.obj), libpq.pointer(to_length))
+        if self._conn:
+            data_pointer = libpq.PQescapeByteaConn(
+                self._conn._pgconn, str(self._wrapped), len(self._wrapped),
+                libpq.pointer(to_length))
             template = r"E'%s'::bytea"
         else:
-            data_pointer = libpq.PQescapeBytea(self.obj, len(self.obj),
-                libpq.pointer(to_length))
+            data_pointer = libpq.PQescapeBytea(
+                self._wrapped, len(self._wrapped), libpq.pointer(to_length))
             template = r"'%s'::bytea"
 
         data = data_pointer[:to_length.value - 1]
@@ -158,22 +113,26 @@ class Binary(BaseAdapter):
         return template % data
 
 
-class List(BaseAdapter):
-    def quote(self):
-        length = len(self.obj)
+class List(_BaseAdapter):
+
+    def prepare(self, connection):
+        self._conn = connection
+
+    def getquoted(self):
+        length = len(self._wrapped)
         if length == 0:
             return "'{}'"
 
         quoted = [None] * length
         for i in xrange(length):
-            obj = self.obj[i]
-            quoted[i] = str(quote(obj, self.connection))
+            obj = self._wrapped[i]
+            quoted[i] = str(_getquoted(obj, self._conn))
         return "ARRAY[%s]" % ", ".join(quoted)
 
 
-class DateTime(BaseAdapter):
-    def quote(self):
-        obj = self.obj
+class DateTime(_BaseAdapter):
+    def getquoted(self):
+        obj = self._wrapped
         if isinstance(obj, datetime.timedelta):
             # TODO: microseconds
             return "'%d days %d.0 seconds'::interval" % (
@@ -190,6 +149,34 @@ class DateTime(BaseAdapter):
                 format = 'date'
             return "'%s'::%s" % (str(iso), format)
 
-AVAILABLE_ADAPTERS = [
-    ('QuotedString', QuotedString)
-]
+
+def adapt(value):
+    """Return the adapter for the given value"""
+    obj_type = type(value)
+    try:
+        return adapters[obj_type](value)
+    except KeyError:
+        for subtype in obj_type.mro()[1:]:
+            try:
+                return adapters[subtype](value)
+            except KeyError:
+                pass
+
+    conform = getattr(value, '__conform__', None)
+    if conform is not None:
+        return conform()
+    raise ProgrammingError("can't adapt type '%s'", obj_type)
+
+
+def register_adapter(typ, callable):
+    adapters[typ] = callable
+
+
+def _getquoted(param, conn):
+    """Helper method"""
+    adapter = adapt(param)
+    try:
+        adapter.prepare(conn)
+    except AttributeError:
+        pass
+    return adapter.getquoted()
