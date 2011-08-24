@@ -55,7 +55,6 @@ class Cursor(object):
 
         self.tzinfo_factory = tz.FixedOffsetTimezone
 
-        self._caster = None
         self._closed = False
         self._description = None
         self._lastrowid = 0
