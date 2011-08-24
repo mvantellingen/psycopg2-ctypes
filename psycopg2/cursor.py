@@ -14,7 +14,12 @@ def check_closed(func):
         return func(self, *args, **kwargs)
     return wrapper
 
+
 def check_no_tuples(func):
+    """Check if there are tuples available. This is only the case when the
+    postgresql status was PGRES_TUPLES_OK
+
+    """
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         if self._no_tuples:
@@ -24,10 +29,30 @@ def check_no_tuples(func):
 
 
 class Cursor(object):
+    """These objects represent a database cursor, which is used to manage
+    the context of a fetch operation.
+
+    Cursors created from the same connection are not isolated, i.e., any
+    changes done to the database by a cursor are immediately visible by the
+    other cursors. Cursors created from different connections can or can not
+    be isolated, depending on how the transaction support is implemented
+    (see also the connection's .rollback() and .commit() methods).
+
+    """
 
     def __init__(self, connection, name):
         self._connection = connection
+
+        #: This read/write attribute specifies the number of rows to fetch at
+        #: a time with .fetchmany(). It defaults to 1 meaning to fetch a
+        #: single row at a time.
+        #:
+        #: Implementations must observe this value with respect to the
+        #: .fetchmany() method, but are free to interact with the database a
+        #: single row at a time. It may also be used in the implementation of
+        #: .executemany().
         self.arraysize = 1
+
         self.tzinfo_factory = tz.FixedOffsetTimezone
 
         self._caster = None
@@ -53,43 +78,99 @@ class Cursor(object):
         return self._closed or self._connection.closed
 
     @property
-    def connection(self):
-        return self._connection
-
-    @property
     def description(self):
+        """This read-only attribute is a sequence of 7-item sequences.
+
+        Each of these sequences contains information describing one result
+        column:
+
+          (name,
+           type_code,
+           display_size,
+           internal_size,
+           precision,
+           scale,
+           null_ok)
+
+        The first two items (name and type_code) are mandatory, the other
+        five are optional and are set to None if no meaningful values can be
+        provided.
+
+        This attribute will be None for operations that do not return rows or
+        if the cursor has not had an operation invoked via the .execute*()
+        method yet.
+
+        The type_code can be interpreted by comparing it to the Type Objects
+        specified in the section below.
+
+        """
         return self._description
 
     @property
-    def lastrowid(self):
-        return self._lastrowid
-
-    @property
-    def name(self):
-        return self._name
-
-    @property
-    def query(self):
-        return self._query
-
-    @property
     def rowcount(self):
+        """This read-only attribute specifies the number of rows that the
+        last .execute*() produced (for DQL statements like 'select') or
+        affected (for DML statements like 'update' or 'insert').
+
+        The attribute is -1 in case no .execute*() has been performed on the
+        cursor or the rowcount of the last operation is cannot be determined
+        by the interface.
+
+        Note: Future versions of the DB API specification could redefine the
+        latter case to have the object return None instead of -1.
+
+        """
         return self._rowcount
 
-    @property
-    def rownumber(self):
-        return self._rownumber
-
-    @property
-    def statusmessage(self):
-        return self._statusmessage
+    @check_closed
+    def callproc(self, procname, parameters=None):
+        if parameters is None:
+            length = 0
+        else:
+            length = len(parameters)
+        sql = "SELECT * FROM %s(%s)" % (
+            procname,
+            ", ".join(["%s"] * length)
+        )
+        self.execute(sql, parameters)
+        return parameters
 
     def close(self):
+        """Close the cursor now (rather than whenever __del__ is called).
+
+        The cursor will be unusable from this point forward; an Error
+        (or subclass) exception will be raised if any operation is attempted
+        with the cursor.
+
+        """
         self._closed = True
 
     @check_closed
     def execute(self, query, parameters=None):
-        """Execute the given query after combining the query and parameters.
+        """Prepare and execute a database operation (query or command).
+
+        Parameters may be provided as sequence or mapping and will be bound to
+        variables in the operation.  Variables are specified in a
+        database-specific notation (see the module's paramstyle attribute for
+        details).
+
+        A reference to the operation will be retained by the cursor.  If the
+        same operation object is passed in again, then the cursor can optimize
+        its behavior.  This is most effective for algorithms where the same
+        operation is used, but different parameters are bound to it
+        (many times).
+
+        For maximum efficiency when reusing an operation, it is best to use
+        the .setinputsizes() method to specify the parameter types and sizes
+        ahead of time.  It is legal for a parameter to not match the
+        predefined information; the implementation should compensate,
+        possibly with a loss of efficiency.
+
+        The parameters may also be specified as list of tuples to e.g. insert
+        multiple rows in a single operation, but this kind of usage is
+        deprecated: .executemany() should be used instead.
+
+        Return values are not defined.
 
         """
         self._description = None
@@ -161,6 +242,25 @@ class Cursor(object):
 
     @check_closed
     def executemany(self, query, paramlist):
+        """Prepare a database operation (query or command) and then execute
+        it against all parameter sequences or mappings found in the sequence
+        seq_of_parameters.
+
+        Modules are free to implement this method using multiple calls to the
+        .execute() method or by using array operations to have the database
+        process the sequence as a whole in one call.
+
+        Use of this method for an operation which produces one or more result
+        sets constitutes undefined behavior, and the implementation is
+        permitted (but not required) to raise an exception when it detects
+        that a result set has been created by an invocation of the operation.
+
+        The same comments as for .execute() also apply accordingly to this
+        method.
+
+        Return values are not defined.
+
+        """
         self._rowcount = -1
         rowcount = 0
         for params in paramlist:
@@ -172,24 +272,16 @@ class Cursor(object):
         self._rowcount = rowcount
 
     @check_closed
-    def callproc(self, procname, parameters=None):
-        if parameters is None:
-            length = 0
-        else:
-            length = len(parameters)
-        sql = "SELECT * FROM %s(%s)" % (
-            procname,
-            ", ".join(["%s"] * length)
-        )
-        self.execute(sql, parameters)
-        return parameters
-
-    def mogrify(self, query, vars=None):
-        return _combine_cmd_params(query, vars, self._connection)
-
-    @check_closed
     @check_no_tuples
     def fetchone(self):
+        """Fetch the next row of a query result set, returning a single
+        sequence, or None when no more data is available. [6]
+
+
+        An Error (or subclass) exception is raised if the previous call to
+        .execute*() did not produce any result set or no call was issued yet.
+
+        """
         if self._rownumber >= self._rowcount:
             return None
 
@@ -199,20 +291,28 @@ class Cursor(object):
 
     @check_closed
     @check_no_tuples
-    def fetchall(self):
-        size = self._rowcount - self._rownumber
-        if size <= 0:
-            return []
-
-        result = []
-        for row in xrange(size):
-            result.append(self._build_row(self._rownumber))
-            self._rownumber += 1
-        return result
-
-    @check_closed
-    @check_no_tuples
     def fetchmany(self, size=None):
+        """Fetch the next set of rows of a query result, returning a
+        sequence of sequences (e.g. a list of tuples). An empty sequence is
+        returned when no more rows are available.
+
+        The number of rows to fetch per call is specified by the parameter.
+        If it is not given, the cursor's arraysize determines the number of
+        rows to be fetched. The method should try to fetch as many rows as
+        indicated by the size parameter. If this is not possible due to the
+        specified number of rows not being available, fewer rows may be
+        returned.
+
+        An Error (or subclass) exception is raised if the previous call to
+        .execute*() did not produce any result set or no call was issued yet.
+
+        Note there are performance considerations involved with the size
+        parameter.  For optimal performance, it is usually best to use the
+        arraysize attribute.  If the size parameter is used, then it is best
+        for it to retain the same value from one .fetchmany() call to the
+        next.
+
+        """
         if size is None:
             size = self.arraysize
 
@@ -229,7 +329,122 @@ class Cursor(object):
         return rows
 
     @check_closed
+    @check_no_tuples
+    def fetchall(self):
+        """Fetch all (remaining) rows of a query result, returning them as a
+        sequence of sequences (e.g. a list of tuples).
+
+        Note that the cursor's arraysize attribute can affect the performance
+        of this operation.
+
+        An Error (or subclass) exception is raised if the previous call to
+        .execute*() did not produce any result set or no call was issued yet.
+
+        """
+        size = self._rowcount - self._rownumber
+        if size <= 0:
+            return []
+
+        result = []
+        for row in xrange(size):
+            result.append(self._build_row(self._rownumber))
+            self._rownumber += 1
+        return result
+
+    def nextset(self):
+        """This method will make the cursor skip to the next available set,
+        discarding any remaining rows from the current set.
+
+        If there are no more sets, the method returns None. Otherwise, it
+        returns a true value and subsequent calls to the fetch methods will
+        return rows from the next result set.
+
+        An Error (or subclass) exception is raised if the previous call to
+        .execute*() did not produce any result set or no call was issued yet.
+
+        Note: this method is not supported
+
+        """
+        raise NotImplementedError()
+
+    def mogrify(self, query, vars=None):
+        """Return the the querystring with the vars binded.
+
+        This is not part of the dbapi 2 standard, but a psycopg2 extension.
+
+        """
+        return _combine_cmd_params(query, vars, self._connection)
+
+    def setinputsizes(self, sizes):
+        """This can be used before a call to .execute*() to predefine memory
+        areas for the operation's parameters.
+
+        sizes is specified as a sequence -- one item for each input
+        parameter.  The item should be a Type Object that corresponds to the
+        input that will be used, or it should be an integer specifying the
+        maximum length of a string parameter.  If the item is None, then no
+        predefined memory area will be reserved for that column (this is
+        useful to avoid predefined areas for large inputs).
+
+        This method would be used before the .execute*() method is invoked.
+
+        Implementations are free to have this method do nothing and users are
+        free to not use it.
+
+        """
+        raise NotImplementedError()
+
+    def setoutputsizes(self, size, column=None):
+        """Set a column buffer size for fetches of large columns (e.g.
+        LONGs, BLOBs, etc.).
+
+        The column is specified as an index into the result sequence.  Not
+        specifying the column will set the default size for all large columns
+        in the cursor.
+
+        This method would be used before the .execute*() method is invoked.
+
+        Implementations are free to have this method do nothing and users are
+        free to not use it.
+
+        """
+        raise NotImplementedError()
+
+    @property
+    def rownumber(self):
+        """This read-only attribute should provide the current 0-based index
+        of the cursor in the result set or None if the index cannot be
+        determined.
+
+        The index can be seen as index of the cursor in a sequence (the
+        result set). The next fetch operation will fetch the row indexed by
+        .rownumber in that sequence.
+
+        This is an optional DB API extension.
+
+        """
+        return self._rownumber
+
+    @property
+    def connection(self):
+        """This read-only attribute return a reference to the Connection
+        object on which the cursor was created.
+
+        The attribute simplifies writing polymorph code in multi-connection
+        environments.
+
+        This is an optional DB API extension.
+
+        """
+        return self._connection
+
+    @check_closed
     def __iter__(self):
+        """Return self to make cursors compatible to the iteration protocol
+
+        This is an optional DB API extension.
+
+        """
         return self
 
     def next(self):
@@ -237,6 +452,42 @@ class Cursor(object):
         if row is None:
             raise StopIteration()
         return row
+
+    @property
+    def lastrowid(self):
+        """This read-only attribute provides the OID of the last row inserted
+        by the cursor.
+
+        If the table wasn’t created with OID support or the last operation is
+        not a single record insert, the attribute is set to None.
+
+        This is a Psycopg extension to the DB API 2.0
+
+        """
+        return self._lastrowid
+
+    @property
+    def name(self):
+        """Name of the cursor if it was created with a name
+
+        This is a Psycopg extension to the DB API 2.0
+
+        """
+        return self._name
+
+    @property
+    def query(self):
+        return self._query
+
+    @property
+    def statusmessage(self):
+        """Read-only attribute containing the message returned by the last
+        command.
+
+        This is a Psycopg extension to the DB API 2.0
+
+        """
+        return self._statusmessage
 
     def _clear_pgres(self):
         if self._pgres:
@@ -261,7 +512,8 @@ class Cursor(object):
 def _combine_cmd_params(cmd, params, conn):
     """Combine the command string and params"""
 
-    # Return when no argument binding is required
+    # Return when no argument binding is required.  Note that this method is
+    # not called from .execute() if `params` is None.
     if '%' not in cmd:
         return cmd
 
