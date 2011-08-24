@@ -1,4 +1,5 @@
 from functools import wraps
+from collections import namedtuple
 
 from psycopg2 import extensions, libpq, tz
 from psycopg2.exceptions import InterfaceError, ProgrammingError
@@ -26,6 +27,10 @@ def check_no_tuples(func):
             raise ProgrammingError("no results to fetch")
         return func(self, *args, **kwargs)
     return wrapper
+
+# Used for Cursor.description
+Column = namedtuple('Column', ['name', 'type_code', 'display_size',
+    'internal_size', 'precision', 'scale', 'null_ok'])
 
 
 class Cursor(object):
@@ -211,14 +216,10 @@ class Cursor(object):
             self._rowcount = libpq.PQntuples(self._pgres)
             self._no_tuples = False
             self._nfields = libpq.PQnfields(self._pgres)
-            description = [None] * self._nfields
+            description = []
             casts = []
             for i in xrange(self._nfields):
-                field_description = [None] * 7
-                field_description[0] = libpq.PQfname(self._pgres, i)
-
                 ftype = libpq.PQftype(self._pgres, i)
-                field_description[1] = ftype
                 try:
                     cast = self._typecasts[ftype]
                 except KeyError:
@@ -231,7 +232,17 @@ class Cursor(object):
                         except KeyError:
                             cast = extensions.string_types[19]
                 casts.append(cast)
-                description[i] = tuple(field_description)
+
+                description.append(Column(
+                    name=libpq.PQfname(self._pgres, i),
+                    type_code=ftype,
+                    display_size=None,
+                    internal_size=None,
+                    precision=None,
+                    scale=None,
+                    null_ok=None,
+                ))
+
 
             self._description = tuple(description)
             self._casts = casts

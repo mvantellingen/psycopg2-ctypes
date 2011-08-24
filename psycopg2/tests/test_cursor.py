@@ -33,6 +33,9 @@ class TestCursor(TestBase):
         assert cur.description[0][0] == "name"
         assert cur.description[0][1] == psycopg2.STRING
 
+        assert cur.description[0].name == "name"
+        assert cur.description[0].type_code == psycopg2.STRING
+
         cur.execute(self.ddl2)
         self.assertEqual(cur.description, None)
 
