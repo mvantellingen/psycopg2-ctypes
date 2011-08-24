@@ -3,8 +3,8 @@ import decimal
 import math
 
 from psycopg2 import libpq
-from psycopg2.exceptions import ProgrammingError
 from psycopg2 import typecasts
+from psycopg2.exceptions import ProgrammingError
 
 ISOLATION_LEVEL_AUTOCOMMIT = 0
 ISOLATION_LEVEL_READ_COMMITTED = ISOLATION_LEVEL_READ_UNCOMMITTED = 1
