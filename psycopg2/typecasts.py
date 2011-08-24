@@ -6,85 +6,27 @@ from time import localtime
 from psycopg2 import libpq
 
 
-encodings = {
-    'UNICODE': 'utf_8',
-    'UTF8': 'utf_8',
-    'LATIN1': 'ISO-8859-1',
-    'LATIN2': 'ISO-8859-2',
-    'LATIN3': 'ISO-8859-3',
-    'LATIN4': 'ISO-8859-4',
-    'LATIN5': 'ISO-8859-9',
-    'LATIN6': 'ISO-8859-10',
-    'LATIN7': 'ISO-8859-13',
-    'LATIN8': 'ISO-8859-14',
-    'LATIN9': 'ISO-8859-15',
-    'LATIN10': 'ISO-8859-16'
-}
-
-string_types = {}
-
-
-class Type(object):
-    def __init__(self, name, values, caster=None, py_caster=None):
-        self.name = name
-        self.values = values
-        self.caster = caster
-        self.py_caster = py_caster
-
-    def __eq__(self, other):
-        return other in self.values
-
-    def cast(self, value, length, cursor):
-        if self.py_caster is not None:
-            return self.py_caster(value, cursor)
-        return self.caster(value, length, cursor)
-
-
-def register_type(type_obj, scope=None):
-
-    typecasts = string_types
-    if scope:
-        from psycopg2.connection import Connection
-        from psycopg2.cursor import Cursor
-
-        if isinstance(scope, Connection):
-            typecasts = scope._typecasts
-        elif isinstance(scope, Cursor):
-            typecasts = scope._typecasts
-        else:
-            typecasts = None
-
-    for value in type_obj.values:
-        typecasts[value] = type_obj
-
-
-def new_type(oids, name, adapter):
-    return Type(name, oids, py_caster=adapter)
-
-def typecast(caster, value, length, cursor):
-    return caster.cast(value, length, cursor)
-
-def cast_string(value, length, cursor):
+def parse_string(value, length, cursor):
     return value
 
 
-def cast_longinteger(value, length, cursor):
+def parse_longinteger(value, length, cursor):
     return long(value)
 
 
-def cast_integer(value, length, cursor):
+def parse_integer(value, length, cursor):
     return int(value)
 
 
-def cast_float(value, length, cursor):
+def parse_float(value, length, cursor):
     return float(value)
 
 
-def cast_decimal(value, length, cursor):
+def parse_decimal(value, length, cursor):
     return decimal.Decimal(value)
 
 
-def cast_binary(value, length, cursor):
+def parse_binary(value, length, cursor):
     to_length = libpq.c_uint()
     s = libpq.PQunescapeBytea(value, libpq.pointer(to_length))
     try:
@@ -94,11 +36,11 @@ def cast_binary(value, length, cursor):
     return res
 
 
-def cast_boolean(value, length, cursor):
+def parse_boolean(value, length, cursor):
     return value[0] == "t"
 
 
-class cast_generic_array(object):
+class parse_array(object):
     def __init__(self, caster):
         self._caster = caster
 
@@ -106,6 +48,8 @@ class cast_generic_array(object):
         return self(value, length, cursor)
 
     def __call__(self, value, length, cursor):
+        from psycopg2.extensions import typecast
+
         s = value
         assert s[0] == "{" and s[-1] == "}"
         i = 1
@@ -156,7 +100,8 @@ class cast_generic_array(object):
         return stack[-1]
 
 
-def cast_unicode(value, length, cursor):
+def parse_unicode(value, length, cursor):
+    from psycopg2.extensions import encodings
     encoding = encodings[cursor.connection.encoding]
     return value.decode(encoding)
 
@@ -194,22 +139,22 @@ def _parse_time(time, cursor):
         tzinfo)
 
 
-def cast_datetime(value, length, cursor):
+def parse_datetime(value, length, cursor):
     date, time = value.split(' ')
     date = _parse_date(date)
     time = _parse_time(time, cursor)
     return datetime.datetime.combine(date, time)
 
 
-def cast_date(value, length, cursor):
+def parse_date(value, length, cursor):
     return _parse_date(value)
 
 
-def cast_time(value, length, cursor):
+def parse_time(value, length, cursor):
     return _parse_time(value, cursor)
 
 
-def cast_interval(value, length, cursor):
+def parse_interval(value, length, cursor):
     years = months = days = 0
     hours = minutes = seconds = hundreths = 0.0
     v = 0.0
