@@ -1,11 +1,10 @@
 """ctypes interface to the libpq library"""
 from ctypes import *
-from ctypes.util import find_library
+from psycopg2ct._config import PG_LIBRARY, PG_VERSION
 
-path = find_library('pq')
-if not path:
-    raise ImportError('Could not find postgresql client library.')
-libpq = cdll.LoadLibrary(path)
+if not PG_LIBRARY:
+    raise RuntimeError('libpq not found!')
+libpq = cdll.LoadLibrary(PG_LIBRARY)
 
 
 class PGconn(Structure):
