@@ -1,10 +1,10 @@
 from functools import wraps
 from collections import deque
 
-from psycopg2 import libpq
-from psycopg2 import exceptions
-from psycopg2.cursor import Cursor
-from psycopg2.xid import Xid
+from psycopg2ct import libpq
+from psycopg2ct import exceptions
+from psycopg2ct.cursor import Cursor
+from psycopg2ct.xid import Xid
 
 
 def check_closed(func):
@@ -204,7 +204,7 @@ class Connection(object):
             libpq.PQclear(pgres)
 
     def _execute_tpc_command(self, command):
-        from psycopg2 import QuotedString
+        from psycopg2ct import QuotedString
 
         tid = self._tpc_xid.as_tid()
         tid = QuotedString(tid)

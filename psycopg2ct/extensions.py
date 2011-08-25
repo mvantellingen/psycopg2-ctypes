@@ -2,9 +2,9 @@ import datetime
 import decimal
 import math
 
-from psycopg2 import libpq
-from psycopg2 import typecasts
-from psycopg2.exceptions import ProgrammingError
+from psycopg2ct import libpq
+from psycopg2ct import typecasts
+from psycopg2ct.exceptions import ProgrammingError
 
 ISOLATION_LEVEL_AUTOCOMMIT = 0
 ISOLATION_LEVEL_READ_COMMITTED = ISOLATION_LEVEL_READ_UNCOMMITTED = 1
@@ -233,8 +233,8 @@ class Type(object):
 def register_type(type_obj, scope=None):
     typecasts = string_types
     if scope:
-        from psycopg2.connection import Connection
-        from psycopg2.cursor import Cursor
+        from psycopg2ct.connection import Connection
+        from psycopg2ct.cursor import Cursor
 
         if isinstance(scope, Connection):
             typecasts = scope._typecasts

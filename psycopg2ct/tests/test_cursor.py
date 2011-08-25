@@ -1,4 +1,4 @@
-from psycopg2.tests.test_base import TestBase
+from psycopg2ct.tests.test_base import TestBase
 
 
 class TestCursor(TestBase):
@@ -19,7 +19,7 @@ class TestCursor(TestBase):
         conn.close()
 
     def test_description(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         cur = conn.cursor()
@@ -31,10 +31,10 @@ class TestCursor(TestBase):
         assert len(cur.description) == 1
         assert len(cur.description[0]) == 7
         assert cur.description[0][0] == "name"
-        assert cur.description[0][1] == psycopg2.STRING
+        assert cur.description[0][1] == psycopg2ct.STRING
 
         assert cur.description[0].name == "name"
-        assert cur.description[0].type_code == psycopg2.STRING
+        assert cur.description[0].type_code == psycopg2ct.STRING
 
         cur.execute(self.ddl2)
         self.assertEqual(cur.description, None)
@@ -72,17 +72,17 @@ class TestCursor(TestBase):
         conn.close()
 
     def test_close(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         cur = conn.cursor()
         conn.close()
 
-        with self.assertRaises(psycopg2.Error):
+        with self.assertRaises(psycopg2ct.Error):
             cur.execute(self.ddl1)
-        with self.assertRaises(psycopg2.Error):
+        with self.assertRaises(psycopg2ct.Error):
             conn.commit()
-        with self.assertRaises(psycopg2.Error):
+        with self.assertRaises(psycopg2ct.Error):
             conn.close()
 
     def test_execute(self):
@@ -101,12 +101,12 @@ class TestCursor(TestBase):
         conn.close()
 
     def test_execute_bad_format(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         cur = conn.cursor()
 
-        with self.assertRaises(psycopg2.ProgrammingError):
+        with self.assertRaises(psycopg2ct.ProgrammingError):
             cur.execute("INSERT INTO booze VALUES (%(drink", {"drink": "foo"})
 
         conn.close()
@@ -141,21 +141,21 @@ class TestCursor(TestBase):
         conn.close()
 
     def test_fetchone(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         cur = conn.cursor()
 
-        with self.assertRaises(psycopg2.Error):
+        with self.assertRaises(psycopg2ct.Error):
             cur.fetchone()
         cur.execute(self.ddl1)
-        with self.assertRaises(psycopg2.Error):
+        with self.assertRaises(psycopg2ct.Error):
             cur.fetchone()
         cur.execute("SELECT name FROM booze")
         assert cur.fetchone() is None
         assert cur.rowcount == 0
         cur.execute("INSERT INTO booze VALUES ('Victoria Bitter')")
-        with self.assertRaises(psycopg2.Error):
+        with self.assertRaises(psycopg2ct.Error):
             cur.fetchone()
         cur.execute("SELECT name FROM booze")
         r = cur.fetchone()
@@ -167,12 +167,12 @@ class TestCursor(TestBase):
         conn.close()
 
     def test_fetchmany(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         cur = conn.cursor()
 
-        with self.assertRaises(psycopg2.Error):
+        with self.assertRaises(psycopg2ct.Error):
             cur.fetchmany(4)
         cur.execute(self.ddl1)
         cur.executemany("INSERT INTO booze VALUES (%s)", self.samples)
@@ -218,15 +218,15 @@ class TestCursor(TestBase):
         conn.close()
 
     def test_fetchall(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         cur = conn.cursor()
-        with self.assertRaises(psycopg2.Error):
+        with self.assertRaises(psycopg2ct.Error):
             cur.fetchall()
         cur.execute(self.ddl1)
         cur.executemany("INSERT INTO booze VALUES (%s)", self.samples)
-        with self.assertRaises(psycopg2.Error):
+        with self.assertRaises(psycopg2ct.Error):
             cur.fetchall()
 
         cur.execute("SELECT name FROM booze")
@@ -361,13 +361,13 @@ class TestCursor(TestBase):
         conn.close()
 
     def test_binary(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         cur = conn.cursor()
 
         s = "".join(map(chr, range(256)))
-        b = psycopg2.Binary(s)
+        b = psycopg2ct.Binary(s)
         cur.execute("SELECT %s::bytea", (b,))
         r = cur.fetchone()
         assert str(r[0]) == s
@@ -375,19 +375,19 @@ class TestCursor(TestBase):
         conn.close()
 
     def test_binary_empty_string(self):
-        import psycopg2
+        import psycopg2ct
 
-        b = psycopg2.Binary("")
+        b = psycopg2ct.Binary("")
         self.assertEqual(str(b), "''::bytea")
 
     def test_binary_roundtrip(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         cur = conn.cursor()
 
         s = "".join(map(chr, range(256)))
-        cur.execute("SELECT %s::bytea", (psycopg2.Binary(s),))
+        cur.execute("SELECT %s::bytea", (psycopg2ct.Binary(s),))
         buf1, = cur.fetchone()
         self.assertEqual(str(buf1), s)
         cur.execute("SELECT %s::bytea", (buf1,))
@@ -468,7 +468,7 @@ class TestCursor(TestBase):
         conn.close()
 
     def test_binary_quoting(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         cur = conn.cursor()
@@ -477,25 +477,25 @@ class TestCursor(TestBase):
         stuff into, 'quotes' and \\ a backslash too.
         """ + "".join(map(chr, range(256)))
 
-        cur.execute("SELECT %s::bytea", (psycopg2.Binary(data),))
+        cur.execute("SELECT %s::bytea", (psycopg2ct.Binary(data),))
         r, = cur.fetchone()
         self.assertEqual(str(r), data)
 
         conn.close()
 
     def test_unicode_blank(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         cur = conn.cursor()
         conn.set_client_encoding("UNICODE")
-        psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
+        psycopg2ct.extensions.register_type(psycopg2ct.extensions.UNICODE)
         cur.execute("select %s::text", (u'',))
         r, = cur.fetchone()
         conn.close()
 
     def test_unicode_quoting_more(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         cur = conn.cursor()
@@ -505,7 +505,7 @@ class TestCursor(TestBase):
         """
         data += self.big_unicode_data
         conn.set_client_encoding("UNICODE")
-        psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
+        psycopg2ct.extensions.register_type(psycopg2ct.extensions.UNICODE)
         cur.execute("SELECT %s::text", (data,))
         r, = cur.fetchone()
         assert r == data
@@ -585,14 +585,14 @@ class TestCursor(TestBase):
         conn.close()
 
     def test_integrity_error(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         cur = conn.cursor()
         cur.execute(self.ddl3)
 
         cur.execute("INSERT INTO pythons VALUES (3)")
-        with self.assertRaises(psycopg2.IntegrityError):
+        with self.assertRaises(psycopg2ct.IntegrityError):
             cur.execute("INSERT INTO pythons VALUES (3)")
         conn.rollback()
 
@@ -663,7 +663,7 @@ class TestCursor(TestBase):
         conn.close()
 
     def test_too_many_not_enough_params(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         cur = conn.cursor()
@@ -677,7 +677,7 @@ class TestCursor(TestBase):
 
 
     def test_percentage_in_text(self):
-        import psycopg2
+        import psycopg2ct
 
         tests = [
             ("select 6 %% 10", 6),

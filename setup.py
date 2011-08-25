@@ -5,7 +5,7 @@ except ImportError:
 
 
 setup(
-    name='psycopg2',
+    name='psycopg2ct',
     version='2.4.0',
     classifiers=[
     ],

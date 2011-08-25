@@ -4,7 +4,7 @@ class TestBase(TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.database = 'psycopg2_test'
+        cls.database = 'psycopg2ct'
 
         cls.dsn = "dbname=%s" % cls.database
         cls.dsn += " user=postgres"
@@ -33,8 +33,8 @@ class TestBase(TestCase):
         ))
 
     def connect(self):
-        import psycopg2
-        return psycopg2.connect(self.dsn)
+        import psycopg2ct
+        return psycopg2ct.connect(self.dsn)
 
     def assert_roundtrips(self, cursor, value):
         cursor.execute("SELECT %s", (value,))
@@ -44,38 +44,38 @@ class TestBase(TestCase):
 
 class TestModule(TestBase):
     def test_version(self):
-        import psycopg2
+        import psycopg2ct
 
-        assert psycopg2.__version__ == "2.4"
+        assert psycopg2ct.__version__ == "2.4"
 
     def test_apilevel(self):
-        import psycopg2
+        import psycopg2ct
 
-        assert psycopg2.apilevel == "2.0"
+        assert psycopg2ct.apilevel == "2.0"
 
     def test_paramstyle(self):
-        import psycopg2
+        import psycopg2ct
 
-        assert psycopg2.paramstyle == "pyformat"
+        assert psycopg2ct.paramstyle == "pyformat"
 
     def test_exceptions(self):
-        import psycopg2
+        import psycopg2ct
 
-        assert issubclass(psycopg2.Warning, StandardError)
-        assert issubclass(psycopg2.Error, StandardError)
+        assert issubclass(psycopg2ct.Warning, StandardError)
+        assert issubclass(psycopg2ct.Error, StandardError)
 
-        assert issubclass(psycopg2.InterfaceError, psycopg2.Error)
-        assert issubclass(psycopg2.DatabaseError, psycopg2.Error)
-        assert issubclass(psycopg2.OperationalError, psycopg2.Error)
-        assert issubclass(psycopg2.IntegrityError, psycopg2.Error)
-        assert issubclass(psycopg2.InternalError, psycopg2.Error)
-        assert issubclass(psycopg2.ProgrammingError, psycopg2.Error)
-        assert issubclass(psycopg2.NotSupportedError, psycopg2.Error)
+        assert issubclass(psycopg2ct.InterfaceError, psycopg2ct.Error)
+        assert issubclass(psycopg2ct.DatabaseError, psycopg2ct.Error)
+        assert issubclass(psycopg2ct.OperationalError, psycopg2ct.Error)
+        assert issubclass(psycopg2ct.IntegrityError, psycopg2ct.Error)
+        assert issubclass(psycopg2ct.InternalError, psycopg2ct.Error)
+        assert issubclass(psycopg2ct.ProgrammingError, psycopg2ct.Error)
+        assert issubclass(psycopg2ct.NotSupportedError, psycopg2ct.Error)
 
     def test_Date(self):
         import time
 
-        import psycopg2
+        import psycopg2ct
 
-        d1 = psycopg2.Date(2002, 12, 25)
-        d2 = psycopg2.DateFromTicks(time.mktime((2002, 12, 25, 0, 0, 0, 0, 0, 0)))
+        d1 = psycopg2ct.Date(2002, 12, 25)
+        d2 = psycopg2ct.DateFromTicks(time.mktime((2002, 12, 25, 0, 0, 0, 0, 0, 0)))

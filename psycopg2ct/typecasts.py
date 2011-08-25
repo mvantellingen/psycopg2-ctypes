@@ -3,7 +3,7 @@ import decimal
 import math
 from time import localtime
 
-from psycopg2 import libpq
+from psycopg2ct import libpq
 
 
 def parse_string(value, length, cursor):
@@ -48,7 +48,7 @@ class parse_array(object):
         return self(value, length, cursor)
 
     def __call__(self, value, length, cursor):
-        from psycopg2.extensions import typecast
+        from psycopg2ct.extensions import typecast
 
         s = value
         assert s[0] == "{" and s[-1] == "}"
@@ -102,7 +102,7 @@ class parse_array(object):
 
 
 def parse_unicode(value, length, cursor):
-    from psycopg2.extensions import encodings
+    from psycopg2ct.extensions import encodings
     encoding = encodings[cursor.connection.encoding]
     return value.decode(encoding)
 
@@ -232,7 +232,7 @@ def parse_interval(value, length, cursor):
 
 
 def Date(year, month, day):
-    from psycopg2.extensions.adapters import DateTime
+    from psycopg2ct.extensions.adapters import DateTime
     date = datetime.date(year, month, day)
     return DateTime(date)
 
@@ -243,5 +243,5 @@ def DateFromTicks(ticks):
 
 
 def Binary(obj):
-    from psycopg2.extensions.adapters import Binary
+    from psycopg2ct.extensions.adapters import Binary
     return Binary(obj)

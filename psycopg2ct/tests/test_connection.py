@@ -1,25 +1,25 @@
-from psycopg2.tests.test_base import TestBase
+from psycopg2ct.tests.test_base import TestBase
 
 class TestConnection(TestBase):
     def test_connect(self):
-        import psycopg2
+        import psycopg2ct
 
-        conn = psycopg2.connect(
+        conn = psycopg2ct.connect(
             database=self.database, user=self.user, password=self.password)
         conn.close()
 
-        conn = psycopg2.connect(
+        conn = psycopg2ct.connect(
             database=self.database, user=self.user, password=self.password,
             port=5432)
         conn.close()
 
-        conn = psycopg2.connect(
+        conn = psycopg2ct.connect(
             database=self.database, user=self.user, password=self.password,
             port="5432")
         conn.close()
 
         with self.assertRaises(TypeError):
-            psycopg2.connect(database=self.database, user=self.user,
+            psycopg2ct.connect(database=self.database, user=self.user,
                 password=self.password, port=object())
 
     def test_closed_attr(self):
@@ -62,20 +62,20 @@ class TestConnection(TestBase):
         conn.close()
 
     def test_isolation_level(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
-        assert conn.isolation_level == psycopg2.extensions.ISOLATION_LEVEL_READ_COMMITTED
+        assert conn.isolation_level == psycopg2ct.extensions.ISOLATION_LEVEL_READ_COMMITTED
 
     def test_set_isolation_level(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
 
         for isolation_level in [
-            psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT,
-            psycopg2.extensions.ISOLATION_LEVEL_READ_COMMITTED,
-            psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE,
+            psycopg2ct.extensions.ISOLATION_LEVEL_AUTOCOMMIT,
+            psycopg2ct.extensions.ISOLATION_LEVEL_READ_COMMITTED,
+            psycopg2ct.extensions.ISOLATION_LEVEL_SERIALIZABLE,
         ]:
             conn.set_isolation_level(isolation_level)
             assert conn.isolation_level == isolation_level
@@ -88,14 +88,14 @@ class TestConnection(TestBase):
         conn.close()
 
     def test_set_isolation_abort(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         cur = conn.cursor()
         cur.execute(self.ddl1)
         conn.commit()
 
-        ext = psycopg2.extensions
+        ext = psycopg2ct.extensions
         self.assertEqual(conn.get_transaction_status(), ext.TRANSACTION_STATUS_IDLE)
 
         cur.execute("INSERT INTO booze VALUES ('Rum')")
@@ -121,7 +121,7 @@ class TestConnection(TestBase):
         cur.execute("INSERT INTO booze VALUES ('Rum')")
         assert conn.get_transaction_status() == ext.TRANSACTION_STATUS_IDLE
 
-        conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_READ_COMMITTED)
+        conn.set_isolation_level(psycopg2ct.extensions.ISOLATION_LEVEL_READ_COMMITTED)
         assert conn.get_transaction_status() == ext.TRANSACTION_STATUS_IDLE
 
         cur.execute("SELECT COUNT(*) FROM booze")
@@ -133,11 +133,11 @@ class TestConnection(TestBase):
         conn.close()
 
     def test_isolation_level_autocommit(self):
-        import psycopg2
+        import psycopg2ct
 
         conn1 = self.connect()
         conn2 = self.connect()
-        conn2.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+        conn2.set_isolation_level(psycopg2ct.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
         cur = conn1.cursor()
         cur.execute(self.ddl1)
         conn1.commit()
@@ -159,11 +159,11 @@ class TestConnection(TestBase):
         conn2.close()
 
     def test_isolation_level_read_committed(self):
-        import psycopg2
+        import psycopg2ct
 
         conn1 = self.connect()
         conn2 = self.connect()
-        conn2.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_READ_COMMITTED)
+        conn2.set_isolation_level(psycopg2ct.extensions.ISOLATION_LEVEL_READ_COMMITTED)
         cur = conn1.cursor()
         cur.execute(self.ddl1)
         conn1.commit()
@@ -197,11 +197,11 @@ class TestConnection(TestBase):
         conn2.close()
 
     def test_isolation_level_serializable(self):
-        import psycopg2
+        import psycopg2ct
 
         conn1 = self.connect()
         conn2 = self.connect()
-        conn2.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE)
+        conn2.set_isolation_level(psycopg2ct.extensions.ISOLATION_LEVEL_SERIALIZABLE)
         cur = conn1.cursor()
         cur.execute(self.ddl1)
         conn1.commit()

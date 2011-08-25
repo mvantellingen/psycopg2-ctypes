@@ -1,4 +1,4 @@
-import psycopg2
+import psycopg2ct
 import uuid
 
 
@@ -8,5 +8,5 @@ def register_uuid(oids=None, conn_or_curs=None):
         return uuid.UUID(val)
 
     oids = oids if oids is not None else [2950]
-    UUID = psycopg2.extensions.new_type(oids, "UUID", adapter)
-    psycopg2.extensions.register_type(UUID, conn_or_curs)
+    UUID = psycopg2ct.extensions.new_type(oids, "UUID", adapter)
+    psycopg2ct.extensions.register_type(UUID, conn_or_curs)

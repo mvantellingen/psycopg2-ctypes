@@ -1,10 +1,10 @@
 import datetime
 from time import localtime
 
-from psycopg2.exceptions import *
-from psycopg2 import extensions
-from psycopg2.connection import connect
-from psycopg2.extensions import Binary, STRING
+from psycopg2ct.exceptions import *
+from psycopg2ct import extensions
+from psycopg2ct.connection import connect
+from psycopg2ct.extensions import Binary, STRING
 
 
 __version__ = '2.4'

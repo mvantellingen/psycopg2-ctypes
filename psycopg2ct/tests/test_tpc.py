@@ -1,4 +1,4 @@
-from psycopg2.tests.test_base import TestBase
+from psycopg2ct.tests.test_base import TestBase
 
 
 class TestTPC(TestBase):
@@ -83,51 +83,51 @@ class TestTPC(TestBase):
         conn.close()
 
     def test_tpc_begin_in_transaction_fails(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         xid = conn.xid(*self.xid)
 
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
-        with self.assertRaises(psycopg2.ProgrammingError):
+        with self.assertRaises(psycopg2ct.ProgrammingError):
             conn.tpc_begin(xid)
 
         conn.close()
 
     def test_tpc_begin_in_tpc_transaction_fails(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         xid = conn.xid(*self.xid)
 
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
-        with self.assertRaises(psycopg2.ProgrammingError):
+        with self.assertRaises(psycopg2ct.ProgrammingError):
             conn.tpc_begin(xid)
 
         conn.close()
 
     def test_commit_in_tpc_fails(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         xid = conn.xid(*self.xid)
 
         conn.tpc_begin(xid)
-        with self.assertRaises(psycopg2.ProgrammingError):
+        with self.assertRaises(psycopg2ct.ProgrammingError):
             conn.commit()
 
         conn.close()
 
     def test_rollback_in_tpc_fails(self):
-        import psycopg2
+        import psycopg2ct
 
         conn = self.connect()
         xid = conn.xid(*self.xid)
 
         conn.tpc_begin(xid)
-        with self.assertRaises(psycopg2.ProgrammingError):
+        with self.assertRaises(psycopg2ct.ProgrammingError):
             conn.rollback()
 
         conn.close()

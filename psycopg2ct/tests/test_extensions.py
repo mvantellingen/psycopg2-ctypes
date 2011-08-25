@@ -1,9 +1,9 @@
-from psycopg2.tests.test_base import TestBase
+from psycopg2ct.tests.test_base import TestBase
 
 
 class TestExtensions(TestBase):
     def test_adapt_subtype(self):
-        from psycopg2.extensions import adapt
+        from psycopg2ct.extensions import adapt
 
         class Sub(str):
             pass
@@ -14,7 +14,7 @@ class TestExtensions(TestBase):
         assert adapt(s1).getquoted() == adapt(s2).getquoted()
 
     def test_adapt_most_specific(self):
-        from psycopg2.extensions import adapt, register_adapter, AsIs
+        from psycopg2ct.extensions import adapt, register_adapter, AsIs
 
         class A(object):
             pass
@@ -28,8 +28,8 @@ class TestExtensions(TestBase):
         assert adapt(C()).getquoted() == "b"
 
     def test_mro_required(self):
-        import psycopg2
-        from psycopg2.extensions import adapt, register_adapter, AsIs
+        import psycopg2ct
+        from psycopg2ct.extensions import adapt, register_adapter, AsIs
 
         # Intentionally old-style, they don't expose their MRO.
         class A:
@@ -38,25 +38,25 @@ class TestExtensions(TestBase):
             pass
 
         register_adapter(A, lambda a: AsIs("a"))
-        with self.assertRaises(psycopg2.ProgrammingError):
+        with self.assertRaises(psycopg2ct.ProgrammingError):
             adapt(B())
 
     def test_register_type(self):
-        import psycopg2
+        import psycopg2ct
 
-        psycopg2.extensions.register_type(psycopg2.extensions.UNICODE)
+        psycopg2ct.extensions.register_type(psycopg2ct.extensions.UNICODE)
         with self.assertRaises(TypeError):
-            psycopg2.extensions.register_type(psycopg2.extensions.UNICODE, 3)
+            psycopg2ct.extensions.register_type(psycopg2ct.extensions.UNICODE, 3)
 
     def test_register_type_connection(self):
-        import psycopg2
+        import psycopg2ct
 
         def func(val, cursor):
             return 42
-        UUID = psycopg2.extensions.new_type((2950,), "UUID", func)
+        UUID = psycopg2ct.extensions.new_type((2950,), "UUID", func)
 
         conn = self.connect()
-        psycopg2.extensions.register_type(UUID, conn)
+        psycopg2ct.extensions.register_type(UUID, conn)
         cur = conn.cursor()
 
         cur.execute("SELECT 'b5219e01-19ab-4994-b71e-149225dc51e4'::uuid")
@@ -66,15 +66,15 @@ class TestExtensions(TestBase):
         conn.close()
 
     def test_register_type_cursor(self):
-        import psycopg2
+        import psycopg2ct
 
         def func(val, cursor):
             return 42
-        UUID = psycopg2.extensions.new_type((2950,), "UUID", func)
+        UUID = psycopg2ct.extensions.new_type((2950,), "UUID", func)
 
         conn = self.connect()
         cur = conn.cursor()
-        psycopg2.extensions.register_type(UUID, cur)
+        psycopg2ct.extensions.register_type(UUID, cur)
 
         cur.execute("SELECT 'b5219e01-19ab-4994-b71e-149225dc51e4'::uuid")
         res, = cur.fetchone()
@@ -83,7 +83,9 @@ class TestExtensions(TestBase):
         conn.close()
 
     def test_isolation_levels(self):
-        import psycopg2
+        import psycopg2ct
 
-        assert psycopg2.extensions.ISOLATION_LEVEL_READ_COMMITTED == psycopg2.extensions.ISOLATION_LEVEL_READ_UNCOMMITTED
-        assert psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE == psycopg2.extensions.ISOLATION_LEVEL_REPEATABLE_READ
+        assert psycopg2ct.extensions.ISOLATION_LEVEL_READ_COMMITTED == \
+            psycopg2ct.extensions.ISOLATION_LEVEL_READ_UNCOMMITTED
+        assert psycopg2ct.extensions.ISOLATION_LEVEL_SERIALIZABLE == \
+            psycopg2ct.extensions.ISOLATION_LEVEL_REPEATABLE_READ
