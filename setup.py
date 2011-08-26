@@ -1,11 +1,11 @@
-# This file is almost entirely taken from psycopg2 with a couple of 
+# This file is almost entirely taken from psycopg2 with a couple of
 # adjustments for ctypes
 
 """Python-PostgreSQL Database Adapter
 
 This is a port of psycopg2 to python+ctypes with usage for PyPy in mind.
 
-To use this package with Django or SQLAlchemy create a psycopg2.py file 
+To use this package with Django or SQLAlchemy create a psycopg2.py file
 somewhere in your python path (e.g. the current working dir) and add::
 
     from psycopg2ct import compat
@@ -199,7 +199,9 @@ class build_py(_build_py):
         if os.name == 'posix':
             if sys.platform == 'darwin':
                 fname = os.path.join(path, 'libpq.dylib')
-        
+            if sys.platform in ['linux2', 'linux3']:
+                fname = os.path.join(path, 'libpq.so')
+
         if fname:
             print
             print '=' * 80
@@ -211,15 +213,15 @@ class build_py(_build_py):
             return fname
         else:
             fname = ctypes.util.find_library('pq')
-            print 
+            print
             print '=' * 80
             print
-            print 'Unable to find the libpq for your platform in:' 
+            print 'Unable to find the libpq for your platform in:'
             print ' -> %s' %  path
-            print 
+            print
             print 'Ignoring pg_config, trying ctypes.util.find_library()'
             if fname:
-                print ' -> OK (%s)' % fname  
+                print ' -> OK (%s)' % fname
             else:
                 print ' -> FAILED'
             print
