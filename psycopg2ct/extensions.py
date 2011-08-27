@@ -4,6 +4,7 @@ import math
 
 from psycopg2ct import libpq
 from psycopg2ct import typecasts
+from psycopg2ct._config import PG_VERSION
 from psycopg2ct.exceptions import ProgrammingError
 
 ISOLATION_LEVEL_AUTOCOMMIT = 0
@@ -161,6 +162,13 @@ class QuotedString(_BaseAdapter):
         if not self._conn:
             to = libpq.create_string_buffer('\0', (length * 2) + 1)
             libpq.PQescapeString(to, string, length)
+            return "E'%s'" % to.value
+
+        if PG_VERSION < 0x090000:
+            to = libpq.create_string_buffer('\0', (length * 2) + 1)
+            err = libpq.c_int()
+            libpq.PQescapeStringConn(
+                self._conn._pgconn, to, string, length, err)
             return "E'%s'" % to.value
 
         data_pointer = libpq.PQescapeLiteral(
