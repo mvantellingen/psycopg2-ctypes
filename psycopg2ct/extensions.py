@@ -93,7 +93,7 @@ class Binary(_BaseAdapter):
             data_pointer = libpq.PQescapeByteaConn(
                 self._conn._pgconn, str(self._wrapped), len(self._wrapped),
                 libpq.pointer(to_length))
-            template = r"E'%s'::bytea"
+            template = r"'%s'::bytea"
         else:
             data_pointer = libpq.PQescapeBytea(
                 self._wrapped, len(self._wrapped), libpq.pointer(to_length))
