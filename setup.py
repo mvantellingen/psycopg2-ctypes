@@ -247,7 +247,7 @@ setup(
     author='Michael van Tellingen',
     author_email='michaelvantellingen@gmail.com',
     license='LGPL',
-    version='0.1',
+    version='0.2',
     cmdclass={
         'build_py': build_py
     },
