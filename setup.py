@@ -20,7 +20,7 @@ import sys
 import subprocess
 import ctypes.util
 
-from distutils.core import setup
+from setuptools import setup
 
 from distutils.command.build_py import build_py as _build_py
 
@@ -254,6 +254,7 @@ setup(
     classifiers=[
     ],
     platforms=['any'],
+    test_suite='psycopg2ct.tests',
     description=__doc__.split("\n")[0],
     long_description="\n".join(__doc__.split("\n")[2:]),
     packages=['psycopg2ct', 'psycopg2ct.tests'],
