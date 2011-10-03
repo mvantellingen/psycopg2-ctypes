@@ -97,6 +97,10 @@ class Connection(object):
             self._rollback()
         self.isolation_level = level
 
+    @check_closed
+    def get_backend_pid(self):
+        return libpq.PQbackendPID(self._pgconn)
+
     def get_transaction_status(self):
         return libpq.PQtransactionStatus(self._pgconn)
 
