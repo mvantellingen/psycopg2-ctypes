@@ -75,6 +75,14 @@ PQdb = libpq.PQdb
 PQdb.argtypes = [PGconn_p]
 PQdb.restype = c_char_p
 
+PQserverVersion = libpq.PQserverVersion
+PQserverVersion.argtypes = [PGconn_p]
+PQserverVersion.restype = c_int
+
+PQprotocolVersion = libpq.PQprotocolVersion
+PQprotocolVersion.argtypes = [PGconn_p]
+PQprotocolVersion.restype = c_int
+
 PQerrorMessage = libpq.PQerrorMessage
 PQerrorMessage.argtypes = [PGconn_p]
 PQerrorMessage.restype = c_char_p

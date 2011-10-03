@@ -127,6 +127,16 @@ class Connection(object):
         return self._notices
 
     @property
+    @check_closed
+    def protocol_version(self):
+        return libpq.PQprotocolVersion(self._pgconn)
+
+    @property
+    @check_closed
+    def server_version(self):
+        return libpq.PQserverVersion(self._pgconn)
+
+    @property
     def closed(self):
         return self._closed
 
