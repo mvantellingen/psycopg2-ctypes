@@ -18,6 +18,12 @@ class PGresult(Structure):
 
 PGresult_p = POINTER(PGresult)
 
+class PGcancel(Structure):
+    _fields_ = []
+
+PGcancel_p = POINTER(PGcancel)
+
+
 CONNECTION_OK = 0
 CONNECTION_BAD = 1
 
@@ -52,8 +58,7 @@ class PGnotify(Structure):
     pass
 
 
-PQnoticeProcessor = CFUNCTYPE(None, c_void_p, c_char_p)
-
+# Database connection control functions
 
 PQconnectdb = libpq.PQconnectdb
 PQconnectdb.argtypes = [c_char_p]
@@ -63,53 +68,45 @@ PQfinish = libpq.PQfinish
 PQfinish.argtypes = [PGconn_p]
 PQfinish.restype = None
 
-PQclear = libpq.PQclear
-PQclear.argtypes = [POINTER(PGresult)]
-PQclear.restype = None
-
-PQfreemem = libpq.PQfreemem
-PQfreemem.argtypes = [c_void_p]
-PQfreemem.restype = None
+# Connection status functions
 
 PQdb = libpq.PQdb
 PQdb.argtypes = [PGconn_p]
 PQdb.restype = c_char_p
 
-PQserverVersion = libpq.PQserverVersion
-PQserverVersion.argtypes = [PGconn_p]
-PQserverVersion.restype = c_int
+PQuser = libpq.PQuser
+PQuser.argtypes = [PGconn_p]
+PQuser.restype = c_char_p
 
-PQprotocolVersion = libpq.PQprotocolVersion
-PQprotocolVersion.argtypes = [PGconn_p]
-PQprotocolVersion.restype = c_int
+PQstatus = libpq.PQstatus
+PQstatus.argtypes = [PGconn_p]
+PQstatus.restype = ConnStatusType
 
-PQerrorMessage = libpq.PQerrorMessage
-PQerrorMessage.argtypes = [PGconn_p]
-PQerrorMessage.restype = c_char_p
+PQtransactionStatus = libpq.PQtransactionStatus
+PQtransactionStatus.argtypes = [PGconn_p]
+PQtransactionStatus.restype = c_int
 
 PQparameterStatus = libpq.PQparameterStatus
 PQparameterStatus.argtypes = [PGconn_p, c_char_p]
 PQparameterStatus.restype = c_char_p
 
-PQescapeStringConn = libpq.PQescapeStringConn
-PQescapeStringConn.restype = c_uint
-PQescapeStringConn.argtypes = [PGconn_p, c_char_p, c_char_p, c_uint, POINTER(c_int)]
+PQprotocolVersion = libpq.PQprotocolVersion
+PQprotocolVersion.argtypes = [PGconn_p]
+PQprotocolVersion.restype = c_int
 
-PQescapeString = libpq.PQescapeString
-PQescapeString.argtypes = [c_char_p, c_char_p, c_uint]
-PQescapeString.restype = c_uint
+PQserverVersion = libpq.PQserverVersion
+PQserverVersion.argtypes = [PGconn_p]
+PQserverVersion.restype = c_int
 
-PQescapeBytea = libpq.PQescapeBytea
-PQescapeBytea.argtypes = [c_char_p, c_uint, POINTER(c_uint)]
-PQescapeBytea.restype = POINTER(c_char)
+PQerrorMessage = libpq.PQerrorMessage
+PQerrorMessage.argtypes = [PGconn_p]
+PQerrorMessage.restype = c_char_p
 
-PQescapeByteaConn = libpq.PQescapeByteaConn
-PQescapeByteaConn.argtypes = [PGconn_p, c_char_p, c_uint, POINTER(c_uint)]
-PQescapeByteaConn.restype = POINTER(c_char)
+PQbackendPID = libpq.PQbackendPID
+PQbackendPID.argtypes = [PGconn_p]
+PQbackendPID.restype = c_int
 
-PQunescapeBytea = libpq.PQunescapeBytea
-PQunescapeBytea.argtypes = [POINTER(c_char), POINTER(c_uint)]
-PQunescapeBytea.restype = POINTER(c_char)
+# Command execution functions
 
 PQexec = libpq.PQexec
 PQexec.argtypes = [PGconn_p, c_char_p]
@@ -127,17 +124,11 @@ PQresultErrorField = libpq.PQresultErrorField
 PQresultErrorField.argtypes = [PGresult_p, c_int]
 PQresultErrorField.restype = c_char_p
 
-PQsetNoticeProcessor = libpq.PQsetNoticeProcessor
-PQsetNoticeProcessor.argtypes = [PGconn_p, PQnoticeProcessor, c_void_p]
-PQsetNoticeProcessor.restype = PQnoticeProcessor
+PQclear = libpq.PQclear
+PQclear.argtypes = [POINTER(PGresult)]
+PQclear.restype = None
 
-PQcmdStatus = libpq.PQcmdStatus
-PQcmdStatus.argtypes = [PGresult_p]
-PQcmdStatus.restype = c_char_p
-
-PQcmdTuples = libpq.PQcmdTuples
-PQcmdTuples.argtypes = [PGresult_p]
-PQcmdTuples.restype = c_char_p
+# Retrieving query result information
 
 PQntuples = libpq.PQntuples
 PQntuples.argtypes = [PGresult_p]
@@ -155,18 +146,6 @@ PQftype = libpq.PQftype
 PQftype.argtypes = [PGresult_p, c_int]
 PQftype.restype = c_uint
 
-PQuser = libpq.PQuser
-PQuser.argtypes = [PGconn_p]
-PQuser.restype = c_char_p
-
-PQstatus = libpq.PQstatus
-PQstatus.argtypes = [PGconn_p]
-PQstatus.restype = ConnStatusType
-
-PQtransactionStatus = libpq.PQtransactionStatus
-PQtransactionStatus.argtypes = [PGconn_p]
-PQtransactionStatus.restype = c_int
-
 PQgetisnull = libpq.PQgetisnull
 PQgetisnull.argtypes = [PGresult_p, c_int, c_int]
 PQgetisnull.restype = c_int
@@ -179,12 +158,75 @@ PQgetvalue = libpq.PQgetvalue
 PQgetvalue.argtypes = [PGresult_p, c_int, c_int]
 PQgetvalue.restype = c_char_p
 
+# Retrieving other result information
+
+PQcmdStatus = libpq.PQcmdStatus
+PQcmdStatus.argtypes = [PGresult_p]
+PQcmdStatus.restype = c_char_p
+
+PQcmdTuples = libpq.PQcmdTuples
+PQcmdTuples.argtypes = [PGresult_p]
+PQcmdTuples.restype = c_char_p
+
 PQoidValue = libpq.PQoidValue
 PQoidValue.argtypes = [PGresult_p]
 PQoidValue.restype = c_uint
 
+# Escaping string for inclusion in sql commands
 
 if PG_VERSION >= 0x090000:
     PQescapeLiteral = libpq.PQescapeLiteral
     PQescapeLiteral.argtypes = [PGconn_p, c_char_p, c_uint]
     PQescapeLiteral.restype = POINTER(c_char)
+
+PQescapeStringConn = libpq.PQescapeStringConn
+PQescapeStringConn.restype = c_uint
+PQescapeStringConn.argtypes = [PGconn_p, c_char_p, c_char_p, c_uint, POINTER(c_int)]
+
+PQescapeString = libpq.PQescapeString
+PQescapeString.argtypes = [c_char_p, c_char_p, c_uint]
+PQescapeString.restype = c_uint
+
+PQescapeByteaConn = libpq.PQescapeByteaConn
+PQescapeByteaConn.argtypes = [PGconn_p, c_char_p, c_uint, POINTER(c_uint)]
+PQescapeByteaConn.restype = POINTER(c_char)
+
+PQescapeBytea = libpq.PQescapeBytea
+PQescapeBytea.argtypes = [c_char_p, c_uint, POINTER(c_uint)]
+PQescapeBytea.restype = POINTER(c_char)
+
+PQunescapeBytea = libpq.PQunescapeBytea
+PQunescapeBytea.argtypes = [POINTER(c_char), POINTER(c_uint)]
+PQunescapeBytea.restype = POINTER(c_char)
+
+# Cancelling queries in progress
+
+PQgetCancel = libpq.PQgetCancel
+PQgetCancel.argtypes = [PGconn_p]
+PQgetCancel.restype = PGcancel_p
+
+PQfreeCancel = libpq.PQfreeCancel
+PQfreeCancel.argtypes = [PGcancel_p]
+PQfreeCancel.restype = None
+
+PQcancel = libpq.PQcancel
+PQcancel.argtypes = [PGcancel_p, c_char_p, c_int]
+PQcancel.restype = c_int
+
+PQrequestCancel = libpq.PQrequestCancel
+PQrequestCancel.argtypes = [PGconn_p]
+PQrequestCancel.restype = c_int
+
+# Miscellaneous functions
+
+PQfreemem = libpq.PQfreemem
+PQfreemem.argtypes = [c_void_p]
+PQfreemem.restype = None
+
+# Notice processing
+
+PQnoticeProcessor = CFUNCTYPE(None, c_void_p, c_char_p)
+
+PQsetNoticeProcessor = libpq.PQsetNoticeProcessor
+PQsetNoticeProcessor.argtypes = [PGconn_p, PQnoticeProcessor, c_void_p]
+PQsetNoticeProcessor.restype = PQnoticeProcessor
