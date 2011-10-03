@@ -37,3 +37,7 @@ class ProgrammingError(DatabaseError):
 
 class NotSupportedError(DatabaseError):
     pass
+
+
+class QueryCanceledError(OperationalError):
+    pass

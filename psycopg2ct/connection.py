@@ -46,6 +46,7 @@ class Connection(object):
         self.encoding = None
 
         self._closed = True
+        self._cancel = None
         self._typecasts = {}
         self._tpc_xid = None
         self._notices = deque(maxlen=50)
@@ -106,6 +107,13 @@ class Connection(object):
 
     def cursor(self, name=None):
         return Cursor(self, name)
+
+    @check_closed
+    def cancel(self):
+        errbuf = libpq.create_string_buffer(256)
+
+        if libpq.PQcancel(self._cancel, errbuf, len(errbuf)) == 0:
+            self._raise_operational_error(errbuf)
 
     @check_closed
     def set_client_encoding(self, encoding):
@@ -183,13 +191,21 @@ class Connection(object):
 
         isolation_level = libpq.PQgetvalue(pgres, 0, 0)
         libpq.PQclear(pgres)
+
+        # Get current isolation level
         if (isolation_level == 'read uncommitted' or
             isolation_level == 'read committed'):
             self.isolation_level = self.ISOLATION_LEVEL_READ_COMMITTED
         else:
             self.isolation_level = self.ISOLATION_LEVEL_SERIALIZABLE
+
+        # Get encoding
         client_encoding = libpq.PQparameterStatus(self._pgconn, 'client_encoding')
         self.encoding = client_encoding.upper()
+    
+        self._cancel = libpq.PQgetCancel(self._pgconn)
+        if self._cancel is None:
+            raise exceptions.OperationalError("can't get cancellation key")
 
         self._closed = False
         self.status = self.CONN_STATUS_READY

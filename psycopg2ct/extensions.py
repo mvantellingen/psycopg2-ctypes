@@ -6,6 +6,7 @@ from psycopg2ct import libpq
 from psycopg2ct import typecasts
 from psycopg2ct._config import PG_VERSION
 from psycopg2ct.exceptions import ProgrammingError
+from psycopg2ct.exceptions import QueryCanceledError
 
 ISOLATION_LEVEL_AUTOCOMMIT = 0
 ISOLATION_LEVEL_READ_COMMITTED = ISOLATION_LEVEL_READ_UNCOMMITTED = 1
