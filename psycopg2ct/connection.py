@@ -98,6 +98,18 @@ class Connection(object):
             self._rollback()
         self.isolation_level = level
 
+    def set_session(isolation_level=None, readonly=None, deferrable=None, 
+                    autocommit=None):
+        raise NotImplementedError()
+
+    @property
+    def autocommit(self):
+        raise NotImplementedError()
+
+    @autocommit.setter
+    def autocommit(self, value):
+        raise NotImplementedError()
+
     @check_closed
     def get_backend_pid(self):
         return libpq.PQbackendPID(self._pgconn)
@@ -307,7 +319,10 @@ class Connection(object):
 
 
 def connect(dsn=None, database=None, host=None, port=None, user=None,
-            password=None):
+            password=None, async=False):
+    if async:
+        raise NotImplementedError()
+
     if dsn is None:
         args = []
         if database is not None:

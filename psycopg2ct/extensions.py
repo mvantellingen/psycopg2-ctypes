@@ -18,6 +18,9 @@ TRANSACTION_STATUS_INTRANS = 2
 TRANSACTION_STATUS_INERROR = 3
 TRANSACTION_STATUS_UNKNOWN = 4
 
+STATUS_BEGIN = -1
+STATUS_READY = -1
+
 adapters = {}
 
 encodings = {
@@ -188,6 +191,9 @@ class NoneAdapter(_BaseAdapter):
 class SQL_IN(_BaseAdapter):
     pass
 
+
+def b(value):
+    return value
 
 def adapt(value):
     """Return the adapter for the given value"""
