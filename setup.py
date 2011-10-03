@@ -1,19 +1,6 @@
 # This file is almost entirely taken from psycopg2 with a couple of
 # adjustments for ctypes
 
-"""Python-PostgreSQL Database Adapter
-
-This is a port of psycopg2 to python+ctypes with usage for PyPy in mind.
-
-To use this package with Django or SQLAlchemy create a psycopg2.py file
-somewhere in your python path (e.g. the current working dir) and add::
-
-    from psycopg2ct import compat
-    compat.register()
-
-This will map psycopg2ct to psycopg2.
-
-"""
 import os
 import re
 import sys
@@ -242,20 +229,34 @@ class build_py(_build_py):
 
         _build_py.run(self)
 
+README = []
+with open('README', 'r') as fh:
+    README = fh.readlines()
+
+
 setup(
     name='psycopg2ct',
     author='Michael van Tellingen',
     author_email='michaelvantellingen@gmail.com',
     license='LGPL',
-    version='0.3dev',
+    url='http://github.com/mvantellingen/psycopg2-ctypes',
+    version='0.2.1',
     cmdclass={
         'build_py': build_py
     },
     classifiers=[
+        'Development Status :: 3 - Alpha',
+        'License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)',
+        'Intended Audience :: Developers',
+        'Programming Language :: Python :: 2.7',
+        'Programming Language :: SQL',
+        'Topic :: Database',
+        'Topic :: Database :: Front-Ends',
+
     ],
     platforms=['any'],
     test_suite='psycopg2ct.tests',
-    description=__doc__.split("\n")[0],
-    long_description="\n".join(__doc__.split("\n")[2:]),
+    description=README[0].strip(),
+    long_description=''.join(README),
     packages=['psycopg2ct', 'psycopg2ct.tests'],
 )
