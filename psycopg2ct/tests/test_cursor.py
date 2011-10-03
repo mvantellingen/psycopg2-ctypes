@@ -23,11 +23,13 @@
 # License for more details.
 
 import time
-import psycopg2
-import psycopg2.extensions as extensions
-from psycopg2.extensions import b
-from testconfig import dsn
-from testutils import unittest, skip_before_postgres, skip_if_no_namedtuple
+
+import psycopg2ct as psycopg2
+from psycopg2ct import extensions
+from psycopg2ct.extensions import b
+from psycopg2ct.tests.testconfig import dsn
+from psycopg2ct.tests.testutils import unittest, skip_before_postgres, \
+    skip_if_no_namedtuple
 
 class CursorTests(unittest.TestCase):
 

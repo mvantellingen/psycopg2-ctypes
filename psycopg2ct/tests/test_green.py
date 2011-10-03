@@ -23,10 +23,12 @@
 # License for more details.
 
 import unittest
-import psycopg2
-import psycopg2.extensions as extensions
-import psycopg2.extras as extras
-from testconfig import dsn
+
+import psycopg2ct as psycopg2
+from psycopg2ct import extensions
+from psycopg2ct import extras
+from psycopg2ct.tests.testconfig import dsn
+
 
 class ConnectionStub(object):
     """A `connection` wrapper allowing analysis of the `poll()` calls."""

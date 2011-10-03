@@ -26,9 +26,9 @@ import sys
 from testutils import unittest
 from testconfig import dsn
 
-import psycopg2
-import psycopg2.extensions as extensions
-from psycopg2.extensions import b
+import psycopg2ct as psycopg2
+import psycopg2ct.extensions as extensions
+from psycopg2ct.extensions import b
 
 class QuotingTestCase(unittest.TestCase):
     r"""Checks the correct quoting of strings and binary objects.

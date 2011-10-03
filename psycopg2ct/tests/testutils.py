@@ -85,6 +85,7 @@ def skip_if_no_uuid(f):
         try:
             import uuid
         except ImportError:
+
             return self.skipTest("uuid not available in this Python version")
 
         try:
@@ -105,7 +106,7 @@ def skip_if_no_uuid(f):
 def skip_if_tpc_disabled(f):
     """Skip a test if the server has tpc support disabled."""
     def skip_if_tpc_disabled_(self):
-        from psycopg2 import ProgrammingError
+        from psycopg2ct import ProgrammingError
         cnn = self.connect()
         cur = cnn.cursor()
         try:

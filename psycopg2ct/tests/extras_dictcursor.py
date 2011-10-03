@@ -16,8 +16,8 @@
 
 import time
 from datetime import timedelta
-import psycopg2
-import psycopg2.extras as extras
+import psycopg2ct as psycopg2
+import psycopg2ct.extras as extras
 from testutils import unittest, skip_before_postgres, skip_if_no_namedtuple
 from testconfig import dsn
 

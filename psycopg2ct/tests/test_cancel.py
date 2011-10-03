@@ -26,9 +26,9 @@
 import time
 import threading
 
-import psycopg2
-import psycopg2.extensions as extensions
-from psycopg2 import extras
+import psycopg2ct as psycopg2
+import psycopg2ct.extensions as extensions
+from psycopg2ct import extras
 
 from testconfig import dsn
 from testutils import unittest, skip_before_postgres

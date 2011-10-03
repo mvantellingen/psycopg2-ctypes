@@ -29,9 +29,9 @@ from testutils import unittest, decorate_all_tests, skip_if_no_iobase
 from cStringIO import StringIO
 from itertools import cycle, izip
 
-import psycopg2
-import psycopg2.extensions as extensions
-from testconfig import dsn, green
+import psycopg2ct as psycopg2
+from psycopg2ct import extensions
+from psycopg2ct.tests.testconfig import dsn, green
 
 def skip_if_green(f):
     def skip_if_green_(self):

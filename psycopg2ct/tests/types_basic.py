@@ -27,12 +27,12 @@ try:
 except:
     pass
 import sys
-import testutils
-from testutils import unittest, decorate_all_tests
-from testconfig import dsn
 
-import psycopg2
-from psycopg2.extensions import b
+import psycopg2ct as psycopg2
+from psycopg2ct.extensions import b
+from psycopg2ct.tests import testutils
+from psycopg2ct.tests.testutils import unittest, decorate_all_tests
+from psycopg2ct.tests.testconfig import dsn
 
 
 class TypesBasicTests(unittest.TestCase):
@@ -312,14 +312,14 @@ class TypesBasicTests(unittest.TestCase):
 
 class AdaptSubclassTest(unittest.TestCase):
     def test_adapt_subtype(self):
-        from psycopg2.extensions import adapt
+        from psycopg2ct.extensions import adapt
         class Sub(str): pass
         s1 = "hel'lo"
         s2 = Sub(s1)
         self.assertEqual(adapt(s1).getquoted(), adapt(s2).getquoted())
 
     def test_adapt_most_specific(self):
-        from psycopg2.extensions import adapt, register_adapter, AsIs
+        from psycopg2ct.extensions import adapt, register_adapter, AsIs
 
         class A(object): pass
         class B(A): pass
@@ -335,7 +335,7 @@ class AdaptSubclassTest(unittest.TestCase):
 
     @testutils.skip_from_python(3)
     def test_no_mro_no_joy(self):
-        from psycopg2.extensions import adapt, register_adapter, AsIs
+        from psycopg2ct.extensions import adapt, register_adapter, AsIs
 
         class A: pass
         class B(A): pass
@@ -344,12 +344,12 @@ class AdaptSubclassTest(unittest.TestCase):
         try:
             self.assertRaises(psycopg2.ProgrammingError, adapt, B())
         finally:
-           del psycopg2.extensions.adapters[A, psycopg2.extensions.ISQLQuote]
+           del psycopg2ct.extensions.adapters[A, psycopg2.extensions.ISQLQuote]
 
 
     @testutils.skip_before_python(3)
     def test_adapt_subtype_3(self):
-        from psycopg2.extensions import adapt, register_adapter, AsIs
+        from psycopg2ct.extensions import adapt, register_adapter, AsIs
 
         class A: pass
         class B(A): pass

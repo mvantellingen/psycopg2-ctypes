@@ -22,8 +22,8 @@
 # FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
 # License for more details.
 
-import psycopg2
-import psycopg2.extensions as extensions
+import psycopg2ct as psycopg2
+import psycopg2ct.extensions as extensions
 import time
 import unittest
 import gc

@@ -22,18 +22,17 @@
 # FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
 # License for more details.
 
-from testutils import unittest
-
-import psycopg2
-from psycopg2 import extensions
-from testconfig import dsn
-from testutils import script_to_py3
-
 import sys
 import time
 import select
 import signal
 from subprocess import Popen, PIPE
+
+import psycopg2ct as psycopg2
+from psycopg2ct import extensions
+from psycopg2ct.tests.testconfig import dsn
+from psycopg2ct.tests.testutils import script_to_py3
+from psycopg2ct.tests.testutils import unittest
 
 
 class NotifiesTests(unittest.TestCase):
@@ -64,8 +63,8 @@ class NotifiesTests(unittest.TestCase):
         script = ("""\
 import time
 time.sleep(%(sec)s)
-import psycopg2
-import psycopg2.extensions as extensions
+import psycopg2ct as psycopg2
+import psycopg2ct.extensions as extensions
 conn = psycopg2.connect(%(dsn)r)
 conn.set_isolation_level(extensions.ISOLATION_LEVEL_AUTOCOMMIT)
 print conn.get_backend_pid()

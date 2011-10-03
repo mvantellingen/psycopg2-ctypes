@@ -25,13 +25,13 @@
 import os
 import time
 import threading
-from testutils import unittest, decorate_all_tests
-from testutils import skip_before_postgres, skip_after_postgres
 from operator import attrgetter
 
-import psycopg2
-import psycopg2.extensions as extensions
-from testconfig import dsn, dbname
+import psycopg2ct as psycopg2
+from psycopg2ct import extensions
+from psycopg2ct.tests.testconfig import dsn, dbname
+from psycopg2ct.tests.testutils import unittest, decorate_all_tests
+from psycopg2ct.tests.testutils import skip_before_postgres, skip_after_postgres
 
 class ConnectionTests(unittest.TestCase):
 

@@ -22,13 +22,12 @@ import re
 import sys
 from datetime import date
 
-from testutils import unittest, skip_if_no_uuid, skip_before_postgres
-
-import psycopg2
-import psycopg2.extras as extras
-from psycopg2.extensions import b
-
-from testconfig import dsn
+import psycopg2ct as psycopg2
+from psycopg2ct import extras
+from psycopg2ct.extensions import b
+from psycopg2ct.tests.testconfig import dsn
+from psycopg2ct.tests.testutils import unittest, skip_if_no_uuid, \
+    skip_before_postgres
 
 
 def filter_scs(conn, s):
@@ -90,7 +89,7 @@ class TypesExtrasTests(unittest.TestCase):
         self.failUnless(s is None)
 
     def test_inet_conform(self):
-        from psycopg2.extras import Inet
+        from psycopg2ct.extras import Inet
         i = Inet("192.168.1.0/24")
         a = psycopg2.extensions.adapt(i)
         a.prepare(self.conn)
@@ -118,7 +117,7 @@ class TypesExtrasTests(unittest.TestCase):
 
 def skip_if_no_hstore(f):
     def skip_if_no_hstore_(self):
-        from psycopg2.extras import HstoreAdapter
+        from psycopg2ct.extras import HstoreAdapter
         oids = HstoreAdapter.get_oids(self.conn)
         if oids is None or not oids[0]:
             return self.skipTest("hstore not available in test database")
@@ -137,7 +136,7 @@ class HstoreTestCase(unittest.TestCase):
         if self.conn.server_version >= 90000:
             return self.skipTest("skipping dict adaptation with PG pre-9 syntax")
 
-        from psycopg2.extras import HstoreAdapter
+        from psycopg2ct.extras import HstoreAdapter
 
         o = {'a': '1', 'b': "'", 'c': None}
         if self.conn.encoding == 'UTF8':
@@ -163,7 +162,7 @@ class HstoreTestCase(unittest.TestCase):
         if self.conn.server_version < 90000:
             return self.skipTest("skipping dict adaptation with PG 9 syntax")
 
-        from psycopg2.extras import HstoreAdapter
+        from psycopg2ct.extras import HstoreAdapter
 
         o = {'a': '1', 'b': "'", 'c': None}
         if self.conn.encoding == 'UTF8':
@@ -193,7 +192,7 @@ class HstoreTestCase(unittest.TestCase):
             self.assertEqual(ii[3], f(b("E'd'"), b("E'") + encc + b("'")))
 
     def test_parse(self):
-        from psycopg2.extras import HstoreAdapter
+        from psycopg2ct.extras import HstoreAdapter
 
         def ok(s, d):
             self.assertEqual(HstoreAdapter.parse(s, None), d)
@@ -224,7 +223,7 @@ class HstoreTestCase(unittest.TestCase):
 
     @skip_if_no_hstore
     def test_register_conn(self):
-        from psycopg2.extras import register_hstore
+        from psycopg2ct.extras import register_hstore
 
         register_hstore(self.conn)
         cur = self.conn.cursor()
@@ -236,7 +235,7 @@ class HstoreTestCase(unittest.TestCase):
 
     @skip_if_no_hstore
     def test_register_curs(self):
-        from psycopg2.extras import register_hstore
+        from psycopg2ct.extras import register_hstore
 
         cur = self.conn.cursor()
         register_hstore(cur)
@@ -248,7 +247,7 @@ class HstoreTestCase(unittest.TestCase):
 
     @skip_if_no_hstore
     def test_register_unicode(self):
-        from psycopg2.extras import register_hstore
+        from psycopg2ct.extras import register_hstore
 
         register_hstore(self.conn, unicode=True)
         cur = self.conn.cursor()
@@ -262,7 +261,7 @@ class HstoreTestCase(unittest.TestCase):
 
     @skip_if_no_hstore
     def test_register_globally(self):
-        from psycopg2.extras import register_hstore, HstoreAdapter
+        from psycopg2ct.extras import register_hstore, HstoreAdapter
 
         oids = HstoreAdapter.get_oids(self.conn)
         try:
@@ -286,7 +285,7 @@ class HstoreTestCase(unittest.TestCase):
 
     @skip_if_no_hstore
     def test_roundtrip(self):
-        from psycopg2.extras import register_hstore
+        from psycopg2ct.extras import register_hstore
         register_hstore(self.conn)
         cur = self.conn.cursor()
 
@@ -316,7 +315,7 @@ class HstoreTestCase(unittest.TestCase):
 
     @skip_if_no_hstore
     def test_roundtrip_unicode(self):
-        from psycopg2.extras import register_hstore
+        from psycopg2ct.extras import register_hstore
         register_hstore(self.conn, unicode=True)
         cur = self.conn.cursor()
 
@@ -345,7 +344,7 @@ class HstoreTestCase(unittest.TestCase):
 
         # Note: None as conn_or_cursor is just for testing: not public
         # interface and it may break in future.
-        from psycopg2.extras import register_hstore
+        from psycopg2ct.extras import register_hstore
         register_hstore(None, globally=True, oid=oid)
         try:
             cur.execute("select null::hstore, ''::hstore, 'a => b'::hstore")
@@ -360,7 +359,7 @@ class HstoreTestCase(unittest.TestCase):
     @skip_if_no_hstore
     @skip_before_postgres(8, 3)
     def test_roundtrip_array(self):
-        from psycopg2.extras import register_hstore
+        from psycopg2ct.extras import register_hstore
         register_hstore(self.conn)
 
         ds = []
@@ -388,7 +387,7 @@ class HstoreTestCase(unittest.TestCase):
     @skip_if_no_hstore
     @skip_before_postgres(8, 3)
     def test_array_cast(self):
-        from psycopg2.extras import register_hstore
+        from psycopg2ct.extras import register_hstore
         register_hstore(self.conn)
         cur = self.conn.cursor()
         cur.execute("select array['a=>1'::hstore, 'b=>2'::hstore];")
@@ -401,7 +400,7 @@ class HstoreTestCase(unittest.TestCase):
         cur.execute("select 'hstore'::regtype::oid, 'hstore[]'::regtype::oid")
         oid, aoid = cur.fetchone()
 
-        from psycopg2.extras import register_hstore
+        from psycopg2ct.extras import register_hstore
         register_hstore(None, globally=True, oid=oid, array_oid=aoid)
         try:
             cur.execute("select null::hstore, ''::hstore, 'a => b'::hstore, '{a=>b}'::hstore[]")
@@ -465,7 +464,7 @@ class AdaptTypeTestCase(unittest.TestCase):
             ext.register_adapter(type(None), orig_adapter)
 
     def test_tokenization(self):
-        from psycopg2.extras import CompositeCaster
+        from psycopg2ct.extras import CompositeCaster
         def ok(s, v):
             self.assertEqual(CompositeCaster.tokenize(s), v)
 

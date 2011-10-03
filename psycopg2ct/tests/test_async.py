@@ -23,16 +23,15 @@
 # FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
 # License for more details.
 
-from testutils import unittest, skip_before_postgres
-
-import psycopg2
-from psycopg2 import extensions
-
 import time
 import select
 import StringIO
 
-from testconfig import dsn
+import psycopg2ct as psycopg2
+from psycopg2ct import extensions
+from psycopg2ct.tests.testutils import unittest, skip_before_postgres
+from psycopg2ct.tests.testconfig import dsn
+
 
 class PollableStub(object):
     """A 'pollable' wrapper allowing analysis of the `poll()` calls."""
