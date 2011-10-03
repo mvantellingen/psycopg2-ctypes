@@ -1,4 +1,4 @@
-An implementation of the psycopg2 module using ctypes.
+A partial implementation of the psycopg2 module using ctypes.
 
 To use this package with Django or SQLAlchemy create a psycopg2.py file
 somewhere in your python path (e.g. the current working dir) and add::
@@ -6,6 +6,11 @@ somewhere in your python path (e.g. the current working dir) and add::
     from psycopg2ct import compat
     compat.register()
 
-This will map psycopg2ct to psycopg2.
+This will map psycopg2ct to psycopg2. 
+
+Note: this module currently does not implement the full psycopg2 API. Only
+the parts of the API which are used by Django / SQLAlchemy are implemented.
+
+This module is only tested with python 2.7 (cpython and pypy).
 
 This is a port of Alex Gaynor's rpython port (https://bitbucket.org/alex_gaynor/pypy-postgresql/overview) of psycopg2 to python + ctypes.
