@@ -22,17 +22,18 @@
 # FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
 # License for more details.
 
+from testutils import unittest
+
+import psycopg2
+from psycopg2 import extensions
+from testconfig import dsn
+from testutils import script_to_py3
+
 import sys
 import time
 import select
 import signal
 from subprocess import Popen, PIPE
-
-import psycopg2ct as psycopg2
-from psycopg2ct import extensions
-from psycopg2ct.tests.testconfig import dsn
-from psycopg2ct.tests.testutils import script_to_py3
-from psycopg2ct.tests.testutils import unittest
 
 
 class NotifiesTests(unittest.TestCase):
@@ -63,10 +64,10 @@ class NotifiesTests(unittest.TestCase):
         script = ("""\
 import time
 time.sleep(%(sec)s)
-import psycopg2ct as psycopg2
-import psycopg2ct.extensions as extensions
+import psycopg2
+import psycopg2.extensions
 conn = psycopg2.connect(%(dsn)r)
-conn.set_isolation_level(extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
 print conn.get_backend_pid()
 curs = conn.cursor()
 curs.execute("NOTIFY " %(name)r %(payload)r)
@@ -131,7 +132,7 @@ conn.close()
         time.sleep(0.5)
         self.conn.poll()
         notify = self.conn.notifies[0]
-        self.assert_(isinstance(notify, extensions.Notify))
+        self.assert_(isinstance(notify, psycopg2.extensions.Notify))
 
     def test_notify_attributes(self):
         self.autocommit(self.conn)
@@ -161,14 +162,14 @@ conn.close()
         self.assertEqual('Hello, world!', notify.payload)
 
     def test_notify_init(self):
-        n = extensions.Notify(10, 'foo')
+        n = psycopg2.extensions.Notify(10, 'foo')
         self.assertEqual(10, n.pid)
         self.assertEqual('foo', n.channel)
         self.assertEqual('', n.payload)
         (pid, channel) = n
         self.assertEqual((pid, channel), (10, 'foo'))
 
-        n = extensions.Notify(42, 'bar', 'baz')
+        n = psycopg2.extensions.Notify(42, 'bar', 'baz')
         self.assertEqual(42, n.pid)
         self.assertEqual('bar', n.channel)
         self.assertEqual('baz', n.payload)
@@ -179,21 +180,23 @@ conn.close()
         data = [(10, 'foo'), (20, 'foo'), (10, 'foo', 'bar'), (10, 'foo', 'baz')]
         for d1 in data:
             for d2 in data:
-                n1 = extensions.Notify(*d1)
-                n2 = extensions.Notify(*d2)
+                n1 = psycopg2.extensions.Notify(*d1)
+                n2 = psycopg2.extensions.Notify(*d2)
                 self.assertEqual((n1 == n2), (d1 == d2))
                 self.assertEqual((n1 != n2), (d1 != d2))
 
     def test_compare_tuple(self):
-        self.assertEqual((10, 'foo'), extensions.Notify(10, 'foo'))
-        self.assertEqual((10, 'foo'), extensions.Notify(10, 'foo', 'bar'))
-        self.assertNotEqual((10, 'foo'), extensions.Notify(20, 'foo'))
-        self.assertNotEqual((10, 'foo'), extensions.Notify(10, 'bar'))
+        from psycopg2.extensions import Notify
+        self.assertEqual((10, 'foo'), Notify(10, 'foo'))
+        self.assertEqual((10, 'foo'), Notify(10, 'foo', 'bar'))
+        self.assertNotEqual((10, 'foo'), Notify(20, 'foo'))
+        self.assertNotEqual((10, 'foo'), Notify(10, 'bar'))
 
     def test_hash(self):
-        self.assertEqual(hash((10, 'foo')), hash(extensions.Notify(10, 'foo')))
-        self.assertNotEqual(hash(extensions.Notify(10, 'foo', 'bar')),
-            hash(extensions.Notify(10, 'foo')))
+        from psycopg2.extensions import Notify
+        self.assertEqual(hash((10, 'foo')), hash(Notify(10, 'foo')))
+        self.assertNotEqual(hash(Notify(10, 'foo', 'bar')),
+            hash(Notify(10, 'foo')))
 
 def test_suite():
     return unittest.TestLoader().loadTestsFromName(__name__)

@@ -26,9 +26,9 @@ import sys
 from testutils import unittest
 from testconfig import dsn
 
-import psycopg2ct as psycopg2
-import psycopg2ct.extensions as extensions
-from psycopg2ct.extensions import b
+import psycopg2
+import psycopg2.extensions
+from psycopg2.extensions import b
 
 class QuotingTestCase(unittest.TestCase):
     r"""Checks the correct quoting of strings and binary objects.
@@ -106,7 +106,7 @@ class QuotingTestCase(unittest.TestCase):
             if not 0xD800 <= u <= 0xDFFF ]))    # surrogate area
         self.conn.set_client_encoding('UNICODE')
 
-        extensions.register_type(extensions.UNICODE, self.conn)
+        psycopg2.extensions.register_type(psycopg2.extensions.UNICODE, self.conn)
         curs.execute("SELECT %s::text;", (data,))
         res = curs.fetchone()[0]
 
@@ -129,7 +129,7 @@ class QuotingTestCase(unittest.TestCase):
 
         # as unicode
         if sys.version_info[0] < 3:
-            extensions.register_type(extensions.UNICODE, self.conn)
+            psycopg2.extensions.register_type(psycopg2.extensions.UNICODE, self.conn)
             data = data.decode('latin1')
 
             curs.execute("SELECT %s::text;", (data,))
@@ -153,7 +153,7 @@ class QuotingTestCase(unittest.TestCase):
 
         # as unicode
         if sys.version_info[0] < 3:
-            extensions.register_type(extensions.UNICODE, self.conn)
+            psycopg2.extensions.register_type(psycopg2.extensions.UNICODE, self.conn)
             data = data.decode('koi8_r')
 
             curs.execute("SELECT %s::text;", (data,))

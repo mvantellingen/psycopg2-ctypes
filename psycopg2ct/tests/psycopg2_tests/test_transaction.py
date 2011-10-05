@@ -23,12 +23,12 @@
 # License for more details.
 
 import threading
+from testutils import unittest, skip_before_postgres
 
-import psycopg2ct as psycopg2
-from psycopg2ct.extensions import (
+import psycopg2
+from psycopg2.extensions import (
     ISOLATION_LEVEL_SERIALIZABLE, STATUS_BEGIN, STATUS_READY)
-from psycopg2ct.tests.testconfig import dsn
-from psycopg2ct.tests.testutils import unittest, skip_before_postgres
+from testconfig import dsn
 
 class TransactionTests(unittest.TestCase):
 

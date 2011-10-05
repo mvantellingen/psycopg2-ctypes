@@ -16,8 +16,8 @@
 
 import time
 from datetime import timedelta
-import psycopg2ct as psycopg2
-import psycopg2ct.extras as extras
+import psycopg2
+import psycopg2.extras
 from testutils import unittest, skip_before_postgres, skip_if_no_namedtuple
 from testconfig import dsn
 
@@ -96,7 +96,7 @@ class ExtrasDictCursorTests(unittest.TestCase):
         self._testWithNamedCursorReal(getter)
 
     def _testWithPlainCursor(self, getter):
-        curs = self.conn.cursor(cursor_factory=extras.DictCursor)
+        curs = self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
         curs.execute("SELECT * FROM ExtrasDictCursorTests")
         row = getter(curs)
         self.failUnless(row['foo'] == 'bar')
@@ -104,20 +104,20 @@ class ExtrasDictCursorTests(unittest.TestCase):
         return row
 
     def _testWithNamedCursor(self, getter):
-        curs = self.conn.cursor('aname', cursor_factory=extras.DictCursor)
+        curs = self.conn.cursor('aname', cursor_factory=psycopg2.extras.DictCursor)
         curs.execute("SELECT * FROM ExtrasDictCursorTests")
         row = getter(curs)
         self.failUnless(row['foo'] == 'bar')
         self.failUnless(row[0] == 'bar')
 
     def _testWithPlainCursorReal(self, getter):
-        curs = self.conn.cursor(cursor_factory=extras.RealDictCursor)
+        curs = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         curs.execute("SELECT * FROM ExtrasDictCursorTests")
         row = getter(curs)
         self.failUnless(row['foo'] == 'bar')
 
     def _testWithNamedCursorReal(self, getter):
-        curs = self.conn.cursor('aname', cursor_factory=extras.RealDictCursor)
+        curs = self.conn.cursor('aname', cursor_factory=psycopg2.extras.RealDictCursor)
         curs.execute("SELECT * FROM ExtrasDictCursorTests")
         row = getter(curs)
         self.failUnless(row['foo'] == 'bar')

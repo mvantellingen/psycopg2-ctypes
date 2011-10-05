@@ -23,12 +23,10 @@
 # License for more details.
 
 import unittest
-
-import psycopg2ct as psycopg2
-from psycopg2ct import extensions
-from psycopg2ct import extras
-from psycopg2ct.tests.testconfig import dsn
-
+import psycopg2
+import psycopg2.extensions
+import psycopg2.extras
+from testconfig import dsn
 
 class ConnectionStub(object):
     """A `connection` wrapper allowing analysis of the `poll()` calls."""
@@ -46,18 +44,18 @@ class ConnectionStub(object):
 
 class GreenTests(unittest.TestCase):
     def setUp(self):
-        self._cb = extensions.get_wait_callback()
-        extensions.set_wait_callback(extras.wait_select)
+        self._cb = psycopg2.extensions.get_wait_callback()
+        psycopg2.extensions.set_wait_callback(psycopg2.extras.wait_select)
         self.conn = psycopg2.connect(dsn)
 
     def tearDown(self):
         self.conn.close()
-        extensions.set_wait_callback(self._cb)
+        psycopg2.extensions.set_wait_callback(self._cb)
 
     def set_stub_wait_callback(self, conn):
         stub = ConnectionStub(conn)
-        extensions.set_wait_callback(
-            lambda conn: extras.wait_select(stub))
+        psycopg2.extensions.set_wait_callback(
+            lambda conn: psycopg2.extras.wait_select(stub))
         return stub
 
     def test_flush_on_write(self):
@@ -70,7 +68,7 @@ class GreenTests(unittest.TestCase):
             del stub.polls[:]
             curs.execute("select %s;", ('x' * size,))
             self.assertEqual(size, len(curs.fetchone()[0]))
-            if stub.polls.count(extensions.POLL_WRITE) > 1:
+            if stub.polls.count(psycopg2.extensions.POLL_WRITE) > 1:
                 return
 
         # This is more a testing glitch than an error: it happens
@@ -87,11 +85,11 @@ class GreenTests(unittest.TestCase):
         curs.fetchone()
 
         # now try to do something that will fail in the callback
-        extensions.set_wait_callback(lambda conn: 1//0)
+        psycopg2.extensions.set_wait_callback(lambda conn: 1//0)
         self.assertRaises(ZeroDivisionError, curs.execute, "select 2")
 
         # check that the connection is left in an usable state
-        extensions.set_wait_callback(extras.wait_select)
+        psycopg2.extensions.set_wait_callback(psycopg2.extras.wait_select)
         conn.rollback()
         curs.execute("select 2")
         self.assertEqual(2, curs.fetchone()[0])

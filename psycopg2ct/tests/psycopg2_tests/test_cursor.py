@@ -23,13 +23,11 @@
 # License for more details.
 
 import time
-
-import psycopg2ct as psycopg2
-from psycopg2ct import extensions
-from psycopg2ct.extensions import b
-from psycopg2ct.tests.testconfig import dsn
-from psycopg2ct.tests.testutils import unittest, skip_before_postgres, \
-    skip_if_no_namedtuple
+import psycopg2
+import psycopg2.extensions
+from psycopg2.extensions import b
+from testconfig import dsn
+from testutils import unittest, skip_before_postgres, skip_if_no_namedtuple
 
 class CursorTests(unittest.TestCase):
 
@@ -131,12 +129,12 @@ class CursorTests(unittest.TestCase):
         curs = self.conn.cursor()
         self.assertEqual("foo", curs.cast(705, 'foo'))
 
-        D = extensions.new_type((705,), "DOUBLING", lambda v, c: v * 2)
-        extensions.register_type(D, self.conn)
+        D = psycopg2.extensions.new_type((705,), "DOUBLING", lambda v, c: v * 2)
+        psycopg2.extensions.register_type(D, self.conn)
         self.assertEqual("foofoo", curs.cast(705, 'foo'))
 
-        T = extensions.new_type((705,), "TREBLING", lambda v, c: v * 3)
-        extensions.register_type(T, curs)
+        T = psycopg2.extensions.new_type((705,), "TREBLING", lambda v, c: v * 3)
+        psycopg2.extensions.register_type(T, curs)
         self.assertEqual("foofoofoo", curs.cast(705, 'foo'))
 
         curs2 = self.conn.cursor()
@@ -239,7 +237,7 @@ class CursorTests(unittest.TestCase):
 
         c = curs.description[0]
         self.assertEqual(c.name, 'pi')
-        self.assert_(c.type_code in extensions.DECIMAL.values)
+        self.assert_(c.type_code in psycopg2.extensions.DECIMAL.values)
         self.assert_(c.internal_size > 0)
         self.assertEqual(c.precision, 10)
         self.assertEqual(c.scale, 2)
@@ -253,7 +251,7 @@ class CursorTests(unittest.TestCase):
 
         c = curs.description[2]
         self.assertEqual(c.name, 'now')
-        self.assert_(c.type_code in extensions.DATE.values)
+        self.assert_(c.type_code in psycopg2.extensions.DATE.values)
         self.assert_(c.internal_size > 0)
         self.assertEqual(c.precision, None)
         self.assertEqual(c.scale, None)

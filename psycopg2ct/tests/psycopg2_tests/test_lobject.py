@@ -25,13 +25,13 @@
 import os
 import shutil
 import tempfile
+from testutils import unittest, decorate_all_tests, skip_if_tpc_disabled
 
 import psycopg2
-from psycopg2 import extensions
+import psycopg2.extensions
 from psycopg2.extensions import b
-from psycopg2ct.tests.testconfig import dsn, green
-from psycopg2ct.tests.testutils import unittest, decorate_all_tests
-from psycopg2ct.tests.testutils import skip_if_tpc_disabled
+from testconfig import dsn, green
+from testutils import unittest, decorate_all_tests
 
 def skip_if_no_lo(f):
     def skip_if_no_lo_(self):
@@ -389,7 +389,7 @@ def skip_if_no_truncate(f):
             return self.skipTest(
                 "the server doesn't support large object truncate")
 
-        if not hasattr(extensions.lobject, 'truncate'):
+        if not hasattr(psycopg2.extensions.lobject, 'truncate'):
             return self.skipTest(
                 "psycopg2 has been built against a libpq "
                 "without large object truncate support.")

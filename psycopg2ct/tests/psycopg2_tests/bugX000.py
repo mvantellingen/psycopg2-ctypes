@@ -22,7 +22,7 @@
 # FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public
 # License for more details.
 
-import psycopg2ct as psycopg2
+import psycopg2
 import time
 import unittest
 

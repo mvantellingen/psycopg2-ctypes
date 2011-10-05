@@ -24,27 +24,26 @@
 
 import os
 import sys
+from testconfig import dsn
+from testutils import unittest
 
-from psycopg2ct.tests import bug_gc
-from psycopg2ct.tests import bugX000
-from psycopg2ct.tests import extras_dictcursor
-from psycopg2ct.tests import test_dates
-from psycopg2ct.tests import test_psycopg2_dbapi20
-from psycopg2ct.tests import test_quote
-from psycopg2ct.tests import test_connection
-from psycopg2ct.tests import test_cursor
-from psycopg2ct.tests import test_transaction
-from psycopg2ct.tests import types_basic
-from psycopg2ct.tests import types_extras
-from psycopg2ct.tests import test_lobject
-from psycopg2ct.tests import test_copy
-from psycopg2ct.tests import test_notify
-from psycopg2ct.tests import test_async
-from psycopg2ct.tests import test_green
-from psycopg2ct.tests import test_cancel
-from psycopg2ct.tests.testconfig import dsn
-from psycopg2ct.tests.testutils import unittest
-
+import bug_gc
+import bugX000
+import extras_dictcursor
+import test_dates
+import test_psycopg2_dbapi20
+import test_quote
+import test_connection
+import test_cursor
+import test_transaction
+import types_basic
+import types_extras
+import test_lobject
+import test_copy
+import test_notify
+import test_async
+import test_green
+import test_cancel
 
 def test_suite():
     # If connection to test db fails, bail out early.

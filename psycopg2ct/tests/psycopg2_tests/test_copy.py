@@ -29,9 +29,9 @@ from testutils import unittest, decorate_all_tests, skip_if_no_iobase
 from cStringIO import StringIO
 from itertools import cycle, izip
 
-import psycopg2ct as psycopg2
-from psycopg2ct import extensions
-from psycopg2ct.tests.testconfig import dsn, green
+import psycopg2
+import psycopg2.extensions
+from testconfig import dsn, green
 
 def skip_if_green(f):
     def skip_if_green_(self):
@@ -200,8 +200,8 @@ class CopyTests(unittest.TestCase):
         f.seek(0)
 
         curs = self.conn.cursor()
-        extensions.register_type(
-            extensions.UNICODE, curs)
+        psycopg2.extensions.register_type(
+            psycopg2.extensions.UNICODE, curs)
 
         curs.copy_expert('COPY tcopy (data) FROM STDIN', f)
         curs.execute("select data from tcopy;")

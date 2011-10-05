@@ -24,10 +24,9 @@
 
 import math
 import unittest
-
-import psycopg2ct as psycopg2
-from psycopg2ct.tz import FixedOffsetTimezone
-from psycopg2ct.tests.testconfig import dsn
+import psycopg2
+from psycopg2.tz import FixedOffsetTimezone
+from testconfig import dsn
 
 class CommonDatetimeTestsMixin:
 
@@ -308,8 +307,8 @@ class DatetimeTests(unittest.TestCase, CommonDatetimeTestsMixin):
 
 
 # Only run the datetime tests if psycopg was compiled with support.
-#if not hasattr(psycopg2._psycopg, 'PYDATETIME'):
-#    del DatetimeTests
+if not hasattr(psycopg2._psycopg, 'PYDATETIME'):
+    del DatetimeTests
 
 
 class mxDateTimeTests(unittest.TestCase, CommonDatetimeTestsMixin):
@@ -485,8 +484,8 @@ class mxDateTimeTests(unittest.TestCase, CommonDatetimeTestsMixin):
 
 
 # Only run the mx.DateTime tests if psycopg was compiled with support.
-#if not hasattr(psycopg2._psycopg, 'MXDATETIME'):
-#    del mxDateTimeTests
+if not hasattr(psycopg2._psycopg, 'MXDATETIME'):
+    del mxDateTimeTests
 
 
 class FromTicksTestCase(unittest.TestCase):

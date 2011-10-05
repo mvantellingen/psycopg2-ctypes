@@ -26,9 +26,9 @@
 import time
 import threading
 
-import psycopg2ct as psycopg2
-import psycopg2ct.extensions as extensions
-from psycopg2ct import extras
+import psycopg2
+import psycopg2.extensions
+from psycopg2 import extras
 
 from testconfig import dsn
 from testutils import unittest, skip_before_postgres
@@ -57,7 +57,7 @@ class CancelTests(unittest.TestCase):
         def neverending(conn):
             cur = conn.cursor()
             try:
-                self.assertRaises(extensions.QueryCanceledError,
+                self.assertRaises(psycopg2.extensions.QueryCanceledError,
                                   cur.execute, "select pg_sleep(60)")
             # make sure the connection still works
                 conn.rollback()
@@ -95,7 +95,7 @@ class CancelTests(unittest.TestCase):
         cur.execute("select pg_sleep(10000)")
         self.assertTrue(async_conn.isexecuting())
         async_conn.cancel()
-        self.assertRaises(extensions.QueryCanceledError,
+        self.assertRaises(psycopg2.extensions.QueryCanceledError,
                           extras.wait_select, async_conn)
         cur.execute("select 1")
         extras.wait_select(async_conn)
