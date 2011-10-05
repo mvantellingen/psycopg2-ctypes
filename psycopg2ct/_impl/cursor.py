@@ -394,6 +394,7 @@ class Cursor(object):
         """
         return _combine_cmd_params(query, vars, self._connection)
 
+    @check_closed
     def setinputsizes(self, sizes):
         """This can be used before a call to .execute*() to predefine memory
         areas for the operation's parameters.
@@ -411,8 +412,9 @@ class Cursor(object):
         free to not use it.
 
         """
-        raise NotImplementedError()
+        pass
 
+    @check_closed
     def setoutputsize(self, size, column=None):
         """Set a column buffer size for fetches of large columns (e.g.
         LONGs, BLOBs, etc.).
@@ -427,7 +429,7 @@ class Cursor(object):
         free to not use it.
 
         """
-        raise NotImplementedError()
+        pass
 
     @property
     def rownumber(self):
