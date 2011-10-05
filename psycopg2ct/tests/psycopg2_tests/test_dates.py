@@ -307,7 +307,10 @@ class DatetimeTests(unittest.TestCase, CommonDatetimeTestsMixin):
 
 
 # Only run the datetime tests if psycopg was compiled with support.
-if not hasattr(psycopg2._psycopg, 'PYDATETIME'):
+try:
+    if not hasattr(psycopg2._psycopg, 'PYDATETIME'):
+        del DatetimeTests
+except AttributeError:
     del DatetimeTests
 
 
@@ -484,7 +487,10 @@ class mxDateTimeTests(unittest.TestCase, CommonDatetimeTestsMixin):
 
 
 # Only run the mx.DateTime tests if psycopg was compiled with support.
-if not hasattr(psycopg2._psycopg, 'MXDATETIME'):
+try:
+    if not hasattr(psycopg2._psycopg, 'MXDATETIME'):
+        del mxDateTimeTests
+except AttributeError:
     del mxDateTimeTests
 
 
