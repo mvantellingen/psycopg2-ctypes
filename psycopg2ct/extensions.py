@@ -2,32 +2,34 @@ import datetime
 import decimal
 import math
 
-from psycopg2ct import libpq
-from psycopg2ct import typecasts
 from psycopg2ct._config import PG_VERSION
-from psycopg2ct.exceptions import ProgrammingError
-from psycopg2ct.exceptions import QueryCanceledError
+from psycopg2ct._impl import libpq
+from psycopg2ct._impl import typecasts
+from psycopg2ct._impl.encodings import encodings
+from psycopg2ct._impl.exceptions import ProgrammingError
+from psycopg2ct._impl.exceptions import QueryCanceledError
+
 
 # Isolation level values.
-ISOLATION_LEVEL_AUTOCOMMIT = 0 
-ISOLATION_LEVEL_READ_UNCOMMITTED = 1 
-ISOLATION_LEVEL_READ_COMMITTED = 2 
-ISOLATION_LEVEL_REPEATABLE_READ = 3 
+ISOLATION_LEVEL_AUTOCOMMIT = 0
+ISOLATION_LEVEL_READ_UNCOMMITTED = 1
+ISOLATION_LEVEL_READ_COMMITTED = 2
+ISOLATION_LEVEL_REPEATABLE_READ = 3
 ISOLATION_LEVEL_SERIALIZABLE = 4
 
 # psycopg connection status values.
-STATUS_SETUP = 0 
-STATUS_READY = 1 
-STATUS_BEGIN = 2 
+STATUS_SETUP = 0
+STATUS_READY = 1
+STATUS_BEGIN = 2
 STATUS_SYNC = 3     # currently unused
 STATUS_ASYNC = 4    # currently unused
-STATUS_PREPARED = 5 
+STATUS_PREPARED = 5
 
 # This is a usefull mnemonic to check if the connection is in a transaction
 STATUS_IN_TRANSACTION = STATUS_BEGIN
 
 # psycopg asynchronous connection polling values
-POLL_OK = 0 
+POLL_OK = 0
 POLL_READ = 1
 POLL_WRITE = 2
 POLL_ERROR = 3
@@ -50,21 +52,6 @@ else:
         return s.encode('utf8')
 
 adapters = {}
-
-encodings = {
-    'UNICODE': 'utf_8',
-    'UTF8': 'utf_8',
-    'LATIN1': 'ISO-8859-1',
-    'LATIN2': 'ISO-8859-2',
-    'LATIN3': 'ISO-8859-3',
-    'LATIN4': 'ISO-8859-4',
-    'LATIN5': 'ISO-8859-9',
-    'LATIN6': 'ISO-8859-10',
-    'LATIN7': 'ISO-8859-13',
-    'LATIN8': 'ISO-8859-14',
-    'LATIN9': 'ISO-8859-15',
-    'LATIN10': 'ISO-8859-16'
-}
 
 string_types = {}
 

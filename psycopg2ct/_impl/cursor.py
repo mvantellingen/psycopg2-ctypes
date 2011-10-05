@@ -1,9 +1,10 @@
 from functools import wraps
 from collections import namedtuple
 
-from psycopg2ct import extensions, libpq, tz
-from psycopg2ct.exceptions import InterfaceError, ProgrammingError
+from psycopg2ct import extensions, tz
 from psycopg2ct.extensions import _getquoted
+from psycopg2ct._impl import libpq
+from psycopg2ct._impl.exceptions import InterfaceError, ProgrammingError
 
 
 def check_closed(func):

@@ -3,7 +3,7 @@ import decimal
 import math
 from time import localtime
 
-from psycopg2ct import libpq
+from psycopg2ct._impl import libpq
 
 
 def parse_string(value, length, cursor):

@@ -1,10 +1,11 @@
 from functools import wraps
 from collections import deque
 
-from psycopg2ct import libpq
-from psycopg2ct import exceptions
-from psycopg2ct.cursor import Cursor
-from psycopg2ct.xid import Xid
+from psycopg2ct import extensions
+from psycopg2ct._impl import exceptions
+from psycopg2ct._impl import libpq
+from psycopg2ct._impl.cursor import Cursor
+from psycopg2ct._impl.xid import Xid
 
 
 def check_closed(func):
@@ -30,15 +31,6 @@ def check_tpc(command):
 
 class Connection(object):
 
-    ISOLATION_LEVEL_AUTOCOMMIT = 0
-    ISOLATION_LEVEL_READ_COMMITTED = ISOLATION_LEVEL_READ_UNCOMMITTED = 1
-    ISOLATION_LEVEL_SERIALIZABLE = ISOLATION_LEVEL_REPEATABLE_READ = 2
-
-    CONN_STATUS_SETUP = 0
-    CONN_STATUS_READY = 1
-    CONN_STATUS_BEGIN = 2
-    CONN_STATUS_PREPARED = 5
-
     # Various exceptions which should be accessible via the Connection
     # class according to dbapi 2.0
     Error = exceptions.Error
@@ -55,7 +47,7 @@ class Connection(object):
     def __init__(self, dsn):
 
         self.dsn = dsn
-        self.status = self.CONN_STATUS_SETUP
+        self.status = extensions.STATUS_SETUP
         self.encoding = None
 
         self._closed = True
@@ -110,22 +102,22 @@ class Connection(object):
     def set_isolation_level(self, level):
         if level < 0 or level > 2:
             raise ValueError('isolation level must be between 0 and 2')
-        if self.isolation_level == level:
+        if self._isolation_level == level:
             return
-        if self.isolation_level != self.ISOLATION_LEVEL_AUTOCOMMIT:
+        if self._isolation_level != extensions.ISOLATION_LEVEL_AUTOCOMMIT:
             self._rollback()
-        self.isolation_level = level
+        self._isolation_level = level
 
-    def set_session(self, isolation_level=None, readonly=None, deferrable=None, 
+    def set_session(self, isolation_level=None, readonly=None, deferrable=None,
                     autocommit=None):
         if isolation_level is not None:
             if isolation_level < 1 or isolation_level > 4:
                 raise ValueError('isolation level must be between 1 and 4')
-            if self._isolation_level == level:
+            if self._isolation_level == isolation_level:
                 return
-            if self._isolation_level != self.ISOLATION_LEVEL_AUTOCOMMIT:
+            if self._isolation_level != extensions.ISOLATION_LEVEL_AUTOCOMMIT:
                 self._rollback()
-            self._isolation_level = level
+            self._isolation_level = isolation_level
 
     @property
     def autocommit(self):
@@ -195,11 +187,11 @@ class Connection(object):
 
     @check_closed
     def tpc_begin(self, xid):
-        if self.status != self.CONN_STATUS_READY:
+        if self.status != extensions.STATUS_READY:
             raise exceptions.ProgrammingError(
                 'tpc_begin must be called outside a transaction')
 
-        if self._isolation_level == self.ISOLATION_LEVEL_AUTOCOMMIT:
+        if self._isolation_level == extensions.ISOLATION_LEVEL_AUTOCOMMIT:
             raise exceptions.ProgrammingError(
                 "tpc_begin can't be called in autocommit mode")
 
@@ -232,24 +224,24 @@ class Connection(object):
         # Get current isolation level
         if (isolation_level == 'read uncommitted' or
             isolation_level == 'read committed'):
-            self._isolation_level = self.ISOLATION_LEVEL_READ_COMMITTED
+            self._isolation_level = extensions.ISOLATION_LEVEL_READ_COMMITTED
         else:
-            self._isolation_level = self.ISOLATION_LEVEL_SERIALIZABLE
+            self._isolation_level = extensions.ISOLATION_LEVEL_SERIALIZABLE
 
         # Get encoding
         client_encoding = libpq.PQparameterStatus(self._pgconn, 'client_encoding')
         self.encoding = client_encoding.upper()
-    
+
         self._cancel = libpq.PQgetCancel(self._pgconn)
         if self._cancel is None:
             raise exceptions.OperationalError("can't get cancellation key")
 
         self._closed = False
-        self.status = self.CONN_STATUS_READY
+        self.status = extensions.STATUS_READY
 
     def _begin_transaction(self):
-        if (self.status == self.CONN_STATUS_READY and
-            self._isolation_level != self.ISOLATION_LEVEL_AUTOCOMMIT):
+        if (self.status == extensions.STATUS_READY and
+            self._isolation_level != extensions.ISOLATION_LEVEL_AUTOCOMMIT):
             sql = [
                     None,
                     'BEGIN; SET TRANSACTION ISOLATION LEVEL READ COMMITTED',
@@ -257,7 +249,7 @@ class Connection(object):
                 ][self._isolation_level]
 
             self._execute_command(sql)
-            self.status = self.CONN_STATUS_BEGIN
+            self.status = extensions.STATUS_BEGIN
 
     def _execute_command(self, command):
         pgres = libpq.PQexec(self._pgconn, command)
@@ -287,7 +279,7 @@ class Connection(object):
                 'tpc_commit/tpc_rollback with no parameter must be '
                 'called in a two-phase transaction')
 
-        if self.status == self.CONN_STATUS_BEGIN:
+        if self.status == extensions.STATUS_BEGIN:
             if fallback == 'commit':
                 self._commit()
             elif fallback == 'abort':
@@ -295,13 +287,13 @@ class Connection(object):
             else:
                 raise exceptions.InternalError(
                     'bad fallback passed to finish_tpc')
-        elif self.status == self.CONN_STATUS_PREPARED:
+        elif self.status == extensions.STATUS_PREPARED:
             self._execute_tpc_command(command)
         else:
             raise exceptions.InterfaceError(
                 'unexpected state in tpc_commit/tpc_rollback')
 
-        self.status = self.CONN_STATUS_READY
+        self.status = extensions.STATUS_READY
         self._tpc_xid = None
 
     def _close(self):
@@ -313,18 +305,18 @@ class Connection(object):
         self._notices = None
 
     def _commit(self):
-        if (self._isolation_level == self.ISOLATION_LEVEL_AUTOCOMMIT or
-            self.status != self.CONN_STATUS_BEGIN):
+        if (self._isolation_level == extensions.ISOLATION_LEVEL_AUTOCOMMIT or
+            self.status != extensions.STATUS_BEGIN):
             return
         self._execute_command('COMMIT')
-        self.status = self.CONN_STATUS_READY
+        self.status = extensions.STATUS_READY
 
     def _rollback(self):
-        if (self._isolation_level == self.ISOLATION_LEVEL_AUTOCOMMIT or
-            self.status != self.CONN_STATUS_BEGIN):
+        if (self._isolation_level == extensions.ISOLATION_LEVEL_AUTOCOMMIT or
+            self.status != extensions.STATUS_BEGIN):
             return
         self._execute_command('ROLLBACK')
-        self.status = self.CONN_STATUS_READY
+        self.status = extensions.STATUS_READY
 
     def _raise_operational_error(self, pgres):
         code = None

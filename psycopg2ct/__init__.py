@@ -1,11 +1,11 @@
 import datetime
 from time import localtime
 
-from psycopg2ct.exceptions import *
 from psycopg2ct import extensions
-from psycopg2ct.connection import connect
 from psycopg2ct.extensions import Binary
 from psycopg2ct.extensions import BINARY, DATETIME, NUMBER, ROWID, STRING
+from psycopg2ct._impl.connection import connect
+from psycopg2ct._impl.exceptions import *
 
 __version__ = '2.4'
 apilevel = '2.0'
