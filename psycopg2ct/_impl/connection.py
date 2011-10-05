@@ -111,8 +111,8 @@ class Connection(object):
 
     @check_closed
     def set_isolation_level(self, level):
-        if level < 0 or level > 2:
-            raise ValueError('isolation level must be between 0 and 2')
+        if level < 0 or level > 4:
+            raise ValueError('isolation level must be between 0 and 4')
         if self._isolation_level == level:
             return
         if self._isolation_level != ISOLATION_LEVEL_AUTOCOMMIT:
