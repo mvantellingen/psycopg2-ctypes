@@ -406,7 +406,7 @@ class Cursor(object):
         free to not use it.
 
         """
-        raise NotImplementedError()
+        pass
 
     def setoutputsize(self, size, column=None):
         """Set a column buffer size for fetches of large columns (e.g.
@@ -422,7 +422,7 @@ class Cursor(object):
         free to not use it.
 
         """
-        raise NotImplementedError()
+        pass
 
     @property
     def rownumber(self):
