@@ -12,6 +12,11 @@ __version__ = '2.4'
 apilevel = '2.0'
 paramstyle = 'pyformat'
 
+# TODO: psycopg2 thread safety is 2. I haven't reviewed it in the -ct
+# but the lack of the word "lock" in the cursor module makes me assume
+# it's not  -- piro
+threadsafety = 1
+
 
 def Date(year, month, day):
     date = datetime.date(year, month, day)
