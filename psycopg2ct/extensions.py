@@ -5,12 +5,20 @@ import math
 from psycopg2ct._config import PG_VERSION
 from psycopg2ct._impl import libpq
 from psycopg2ct._impl import typecasts
-from psycopg2ct._impl.adapters import adapt, adapters, register_adapter
+from psycopg2ct._impl.adapters import adapt, adapters
 from psycopg2ct._impl.connection import Connection as connection
 from psycopg2ct._impl.cursor import Cursor as cursor
 from psycopg2ct._impl.encodings import encodings
 from psycopg2ct._impl.exceptions import ProgrammingError
 from psycopg2ct._impl.exceptions import QueryCanceledError
+
+
+from psycopg2ct._impl.adapters import Binary, Boolean, Int, Float
+from psycopg2ct._impl.adapters import QuotedString, AsIs, ISQLQuote
+
+
+# The following are not available in psycopg2.extensions so figure that out.
+from psycopg2ct._impl.adapters import List, DateTime, Decimal
 
 
 # Isolation level values.
@@ -58,155 +66,45 @@ string_types = typecasts.string_types
 
 
 
-class _BaseAdapter(object):
-    def __init__(self, wrapped_object):
-        self._wrapped = wrapped_object
-        self._conn = None
-
-    def __str__(self):
-        return self.getquoted()
+def register_adapter(typ, callable):
+    adapters[(typ, ISQLQuote)] = callable
 
 
-class ISQLQuote(_BaseAdapter):
-    def getquoted(self):
-        pass
+# The SQL_IN class is the official adapter for tuples starting from 2.0.6.
+class SQL_IN(object):
+    """Adapt any iterable to an SQL quotable object."""
 
-
-class AsIs(_BaseAdapter):
-    def getquoted(self):
-        return str(self._wrapped)
-
-
-class Float(ISQLQuote):
-    def getquoted(self):
-        n = float(self._wrapped)
-        if math.isnan(n):
-            return "'NaN'::float"
-        elif math.isinf(n):
-            return "'Infinity'::float"
-        else:
-            return repr(self._wrapped)
-
-
-class Decimal(_BaseAdapter):
-    def getquoted(self):
-        if self._wrapped.is_finite():
-            return str(self._wrapped)
-        return "'NaN'::numeric"
-
-
-class Boolean(_BaseAdapter):
-    def getquoted(self):
-        return 'true' if self._wrapped else 'false'
-
-
-class Binary(_BaseAdapter):
-    def prepare(self, connection):
-        self._conn = connection
-
-    def __conform__(self):
-        return self
-
-    def getquoted(self):
-        to_length = libpq.c_uint()
-
-        if self._conn:
-            data_pointer = libpq.PQescapeByteaConn(
-                self._conn._pgconn, str(self._wrapped), len(self._wrapped),
-                libpq.pointer(to_length))
-        else:
-            data_pointer = libpq.PQescapeBytea(
-                self._wrapped, len(self._wrapped), libpq.pointer(to_length))
-
-        data = data_pointer[:to_length.value - 1]
-        libpq.PQfreemem(data_pointer)
-        return r"'%s'::bytea" % data
-
-
-class List(_BaseAdapter):
-
-    def prepare(self, connection):
-        self._conn = connection
-
-    def getquoted(self):
-        length = len(self._wrapped)
-        if length == 0:
-            return "'{}'"
-
-        quoted = [None] * length
-        for i in xrange(length):
-            obj = self._wrapped[i]
-            quoted[i] = str(_getquoted(obj, self._conn))
-        return "ARRAY[%s]" % ", ".join(quoted)
-
-
-class DateTime(_BaseAdapter):
-    def getquoted(self):
-        obj = self._wrapped
-        if isinstance(obj, datetime.timedelta):
-            # TODO: microseconds
-            return "'%d days %d.0 seconds'::interval" % (
-                int(obj.days), int(obj.seconds))
-        else:
-            iso = obj.isoformat()
-            if isinstance(obj, datetime.datetime):
-                format = 'timestamp'
-                if getattr(obj, 'tzinfo', None):
-                    format = 'timestamptz'
-            elif isinstance(obj, datetime.time):
-                format = 'time'
-            else:
-                format = 'date'
-            return "'%s'::%s" % (str(iso), format)
-
-
-class QuotedString(_BaseAdapter):
-    def __init__(self, obj):
-        super(QuotedString, self).__init__(obj)
-        self.encoding = "latin-1"
+    def __init__(self, seq):
+        self._seq = seq
 
     def prepare(self, conn):
         self._conn = conn
-        self.encoding = conn.encoding
 
     def getquoted(self):
+        # this is the important line: note how every object in the
+        # list is adapted and then how getquoted() is called on it
+        pobjs = [adapt(o) for o in self._seq]
+        for obj in pobjs:
+            if hasattr(obj, 'prepare'):
+                obj.prepare(self._conn)
+        qobjs = [o.getquoted() for o in pobjs]
+        return b('(') + b(', ').join(qobjs) + b(')')
 
-        obj = self._wrapped
-        if isinstance(self._wrapped, unicode):
-            encoding = encodings[self.encoding]
-            obj = obj.encode(encoding)
-        string = str(obj)
-        length = len(string)
-
-        if not self._conn:
-            to = libpq.create_string_buffer('\0', (length * 2) + 1)
-            libpq.PQescapeString(to, string, length)
-            return "'%s'" % to.value
-
-        if PG_VERSION < 0x090000:
-            to = libpq.create_string_buffer('\0', (length * 2) + 1)
-            err = libpq.c_int()
-            libpq.PQescapeStringConn(
-                self._conn._pgconn, to, string, length, err)
-            return "'%s'" % to.value
-
-        data_pointer = libpq.PQescapeLiteral(
-            self._conn._pgconn, string, length)
-        data = libpq.cast(data_pointer, libpq.c_char_p).value
-        libpq.PQfreemem(data_pointer)
-        return data
+    def __str__(self):
+        return str(self.getquoted())
 
 
-class NoneAdapter(_BaseAdapter):
-    def prepare(self, conn):
+class NoneAdapter(object):
+    """Adapt None to NULL.
+
+    This adapter is not used normally as a fast path in mogrify uses NULL,
+    but it makes easier to adapt composite types.
+    """
+    def __init__(self, obj):
         pass
 
-    def getquoted(self):
-        return 'NULL'
-
-
-class SQL_IN(_BaseAdapter):
-    pass
+    def getquoted(self, _null=b("NULL")):
+        return _null
 
 
 class Type(object):
@@ -244,23 +142,6 @@ def register_type(type_obj, scope=None):
 
 def new_type(oids, name, adapter):
     return Type(name, oids, py_caster=adapter)
-
-
-# Register default adapters
-register_adapter(type(None), NoneAdapter)
-register_adapter(str, QuotedString)
-register_adapter(unicode, QuotedString)
-register_adapter(int, AsIs)
-register_adapter(long, AsIs)
-register_adapter(float, Float)
-register_adapter(bool, Boolean)
-register_adapter(buffer, Binary)
-register_adapter(list, List)
-register_adapter(datetime.datetime, DateTime)
-register_adapter(datetime.date, DateTime)
-register_adapter(datetime.time, DateTime)
-register_adapter(datetime.timedelta, DateTime)
-register_adapter(decimal.Decimal, Decimal)
 
 
 def _default_type(name, oids, caster):
