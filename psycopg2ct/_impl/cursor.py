@@ -48,7 +48,7 @@ class Cursor(object):
 
     """
 
-    def __init__(self, connection, name):
+    def __init__(self, connection, name, row_factory=None):
         self._connection = connection
 
         #: This read/write attribute specifies the number of rows to fetch at
@@ -62,6 +62,7 @@ class Cursor(object):
         self.arraysize = 1
 
         self.tzinfo_factory = tz.FixedOffsetTimezone
+        self.row_factory = row_factory
 
         self._closed = False
         self._description = None
@@ -508,8 +509,17 @@ class Cursor(object):
             self._pgres = None
 
     def _build_row(self, row_num):
+
+        # Create the row
+        if self.row_factory:
+            row = self.row_factory(self)
+            is_tuple = False
+        else:
+            row = [None] * len(self.description)
+            is_tuple = True
+
+        # Fill it
         n = self._nfields
-        row = []
         for i in xrange(n):
             if libpq.PQgetisnull(self._pgres, row_num, i):
                 val = None
@@ -517,9 +527,12 @@ class Cursor(object):
                 val = libpq.PQgetvalue(self._pgres, row_num, i)
                 length = libpq.PQgetlength(self._pgres, row_num, i)
                 val = typecasts.typecast(self._casts[i], val, length, self)
+            row[i] = val
 
-            row.append(val)
-        return tuple(row)
+        if is_tuple:
+            return tuple(row)
+        return row
+
 
 
 def _combine_cmd_params(cmd, params, conn):
