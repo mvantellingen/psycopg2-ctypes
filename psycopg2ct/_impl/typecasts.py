@@ -6,6 +6,13 @@ from time import localtime
 from psycopg2ct._impl import libpq
 
 
+string_types = {}
+
+
+def typecast(caster, value, length, cursor):
+    return caster.cast(value, length, cursor)
+
+
 def parse_string(value, length, cursor):
     return value
 

@@ -1,9 +1,11 @@
 from functools import wraps
 from collections import namedtuple
 
-from psycopg2ct import extensions, tz
-from psycopg2ct.extensions import _getquoted
+from psycopg2ct import tz
+from psycopg2ct._impl import encodings
 from psycopg2ct._impl import libpq
+from psycopg2ct._impl import typecasts
+from psycopg2ct._impl.adapters import _getquoted
 from psycopg2ct._impl.exceptions import InterfaceError, ProgrammingError
 
 
@@ -182,7 +184,7 @@ class Cursor(object):
         conn = self._connection
 
         if isinstance(query, unicode):
-            encoding = extensions.encodings[self._connection.encoding]
+            encoding = encodings[self._connection.encoding]
             query = query.encode(encoding)
 
         if parameters is not None:
@@ -229,9 +231,9 @@ class Cursor(object):
                     except KeyError:
 
                         try:
-                            cast = extensions.string_types[ftype]
+                            cast = typecasts.string_types[ftype]
                         except KeyError:
-                            cast = extensions.string_types[19]
+                            cast = typecasts.string_types[19]
                 casts.append(cast)
 
                 description.append(Column(
@@ -514,7 +516,7 @@ class Cursor(object):
             else:
                 val = libpq.PQgetvalue(self._pgres, row_num, i)
                 length = libpq.PQgetlength(self._pgres, row_num, i)
-                val = extensions.typecast(self._casts[i], val, length, self)
+                val = typecasts.typecast(self._casts[i], val, length, self)
 
             row.append(val)
         return tuple(row)

@@ -1,11 +1,22 @@
 from functools import wraps
 from collections import deque
 
-from psycopg2ct import extensions
 from psycopg2ct._impl import exceptions
 from psycopg2ct._impl import libpq
 from psycopg2ct._impl.cursor import Cursor
 from psycopg2ct._impl.xid import Xid
+
+
+CONN_STATUS_SETUP = 0
+CONN_STATUS_READY = 1
+CONN_STATUS_BEGIN = 2
+CONN_STATUS_PREPARED = 5
+
+ISOLATION_LEVEL_AUTOCOMMIT = 0
+ISOLATION_LEVEL_READ_UNCOMMITTED = 1
+ISOLATION_LEVEL_READ_COMMITTED = 2
+ISOLATION_LEVEL_REPEATABLE_READ = 3
+ISOLATION_LEVEL_SERIALIZABLE = 4
 
 
 def check_closed(func):
@@ -47,7 +58,7 @@ class Connection(object):
     def __init__(self, dsn):
 
         self.dsn = dsn
-        self.status = extensions.STATUS_SETUP
+        self.status = CONN_STATUS_SETUP
         self.encoding = None
 
         self._closed = True
@@ -104,7 +115,7 @@ class Connection(object):
             raise ValueError('isolation level must be between 0 and 2')
         if self._isolation_level == level:
             return
-        if self._isolation_level != extensions.ISOLATION_LEVEL_AUTOCOMMIT:
+        if self._isolation_level != ISOLATION_LEVEL_AUTOCOMMIT:
             self._rollback()
         self._isolation_level = level
 
@@ -115,7 +126,7 @@ class Connection(object):
                 raise ValueError('isolation level must be between 1 and 4')
             if self._isolation_level == isolation_level:
                 return
-            if self._isolation_level != extensions.ISOLATION_LEVEL_AUTOCOMMIT:
+            if self._isolation_level != ISOLATION_LEVEL_AUTOCOMMIT:
                 self._rollback()
             self._isolation_level = isolation_level
 
@@ -134,8 +145,8 @@ class Connection(object):
     def get_transaction_status(self):
         return libpq.PQtransactionStatus(self._pgconn)
 
-    def cursor(self, name=None):
-        return Cursor(self, name)
+    def cursor(self, name=None, cursor_factory=Cursor):
+        return cursor_factory(self, name, )
 
     @check_closed
     def cancel(self):
@@ -187,11 +198,11 @@ class Connection(object):
 
     @check_closed
     def tpc_begin(self, xid):
-        if self.status != extensions.STATUS_READY:
+        if self.status != CONN_STATUS_READY:
             raise exceptions.ProgrammingError(
                 'tpc_begin must be called outside a transaction')
 
-        if self._isolation_level == extensions.ISOLATION_LEVEL_AUTOCOMMIT:
+        if self._isolation_level == ISOLATION_LEVEL_AUTOCOMMIT:
             raise exceptions.ProgrammingError(
                 "tpc_begin can't be called in autocommit mode")
 
@@ -224,9 +235,9 @@ class Connection(object):
         # Get current isolation level
         if (isolation_level == 'read uncommitted' or
             isolation_level == 'read committed'):
-            self._isolation_level = extensions.ISOLATION_LEVEL_READ_COMMITTED
+            self._isolation_level = ISOLATION_LEVEL_READ_COMMITTED
         else:
-            self._isolation_level = extensions.ISOLATION_LEVEL_SERIALIZABLE
+            self._isolation_level = ISOLATION_LEVEL_SERIALIZABLE
 
         # Get encoding
         client_encoding = libpq.PQparameterStatus(self._pgconn, 'client_encoding')
@@ -237,11 +248,11 @@ class Connection(object):
             raise exceptions.OperationalError("can't get cancellation key")
 
         self._closed = False
-        self.status = extensions.STATUS_READY
+        self.status = CONN_STATUS_READY
 
     def _begin_transaction(self):
-        if (self.status == extensions.STATUS_READY and
-            self._isolation_level != extensions.ISOLATION_LEVEL_AUTOCOMMIT):
+        if (self.status == CONN_STATUS_READY and
+            self._isolation_level != ISOLATION_LEVEL_AUTOCOMMIT):
             sql = [
                     None,
                     'BEGIN; SET TRANSACTION ISOLATION LEVEL READ COMMITTED',
@@ -249,7 +260,7 @@ class Connection(object):
                 ][self._isolation_level]
 
             self._execute_command(sql)
-            self.status = extensions.STATUS_BEGIN
+            self.status = CONN_STATUS_BEGIN
 
     def _execute_command(self, command):
         pgres = libpq.PQexec(self._pgconn, command)
@@ -279,7 +290,7 @@ class Connection(object):
                 'tpc_commit/tpc_rollback with no parameter must be '
                 'called in a two-phase transaction')
 
-        if self.status == extensions.STATUS_BEGIN:
+        if self.status == CONN_STATUS_BEGIN:
             if fallback == 'commit':
                 self._commit()
             elif fallback == 'abort':
@@ -287,13 +298,13 @@ class Connection(object):
             else:
                 raise exceptions.InternalError(
                     'bad fallback passed to finish_tpc')
-        elif self.status == extensions.STATUS_PREPARED:
+        elif self.status == CONN_STATUS_PREPARED:
             self._execute_tpc_command(command)
         else:
             raise exceptions.InterfaceError(
                 'unexpected state in tpc_commit/tpc_rollback')
 
-        self.status = extensions.STATUS_READY
+        self.status = CONN_STATUS_READY
         self._tpc_xid = None
 
     def _close(self):
@@ -305,18 +316,18 @@ class Connection(object):
         self._notices = None
 
     def _commit(self):
-        if (self._isolation_level == extensions.ISOLATION_LEVEL_AUTOCOMMIT or
-            self.status != extensions.STATUS_BEGIN):
+        if (self._isolation_level == ISOLATION_LEVEL_AUTOCOMMIT or
+            self.status != CONN_STATUS_BEGIN):
             return
         self._execute_command('COMMIT')
-        self.status = extensions.STATUS_READY
+        self.status = CONN_STATUS_READY
 
     def _rollback(self):
-        if (self._isolation_level == extensions.ISOLATION_LEVEL_AUTOCOMMIT or
-            self.status != extensions.STATUS_BEGIN):
+        if (self._isolation_level == ISOLATION_LEVEL_AUTOCOMMIT or
+            self.status != CONN_STATUS_BEGIN):
             return
         self._execute_command('ROLLBACK')
-        self.status = extensions.STATUS_READY
+        self.status = CONN_STATUS_READY
 
     def _raise_operational_error(self, pgres):
         code = None
@@ -336,7 +347,7 @@ class Connection(object):
 
 
 def connect(dsn=None, database=None, host=None, port=None, user=None,
-            password=None, async=False):
+            password=None, async=False, connection_factory=Connection):
     if async:
         raise NotImplementedError()
 
@@ -358,5 +369,5 @@ def connect(dsn=None, database=None, host=None, port=None, user=None,
         if password is not None:
             args.append('password=%s' % password)
         dsn = ' '.join(args)
-    return Connection(dsn)
+    return connection_factory(dsn)
 

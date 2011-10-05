@@ -5,6 +5,9 @@ import math
 from psycopg2ct._config import PG_VERSION
 from psycopg2ct._impl import libpq
 from psycopg2ct._impl import typecasts
+from psycopg2ct._impl.adapters import adapt, adapters, register_adapter
+from psycopg2ct._impl.connection import Connection as connection
+from psycopg2ct._impl.cursor import Cursor as cursor
 from psycopg2ct._impl.encodings import encodings
 from psycopg2ct._impl.exceptions import ProgrammingError
 from psycopg2ct._impl.exceptions import QueryCanceledError
@@ -51,9 +54,7 @@ else:
     def b(s):
         return s.encode('utf8')
 
-adapters = {}
-
-string_types = {}
+string_types = typecasts.string_types
 
 
 
@@ -208,38 +209,6 @@ class SQL_IN(_BaseAdapter):
     pass
 
 
-def adapt(value):
-    """Return the adapter for the given value"""
-    obj_type = type(value)
-    try:
-        return adapters[obj_type](value)
-    except KeyError:
-        for subtype in obj_type.mro()[1:]:
-            try:
-                return adapters[subtype](value)
-            except KeyError:
-                pass
-
-    conform = getattr(value, '__conform__', None)
-    if conform is not None:
-        return conform()
-    raise ProgrammingError("can't adapt type '%s'", obj_type)
-
-
-def register_adapter(typ, callable):
-    adapters[typ] = callable
-
-
-def _getquoted(param, conn):
-    """Helper method"""
-    adapter = adapt(param)
-    try:
-        adapter.prepare(conn)
-    except AttributeError:
-        pass
-    return adapter.getquoted()
-
-
 class Type(object):
     def __init__(self, name, values, caster=None, py_caster=None):
         self.name = name
@@ -275,10 +244,6 @@ def register_type(type_obj, scope=None):
 
 def new_type(oids, name, adapter):
     return Type(name, oids, py_caster=adapter)
-
-
-def typecast(caster, value, length, cursor):
-    return caster.cast(value, length, cursor)
 
 
 # Register default adapters
