@@ -226,19 +226,7 @@ class Cursor(object):
             casts = []
             for i in xrange(self._nfields):
                 ftype = libpq.PQftype(self._pgres, i)
-                try:
-                    cast = self._typecasts[ftype]
-                except KeyError:
-                    try:
-                        cast = self._connection._typecasts[ftype]
-                    except KeyError:
-
-                        try:
-                            cast = typecasts.string_types[ftype]
-                        except KeyError:
-                            cast = typecasts.string_types[19]
-                casts.append(cast)
-
+                casts.append(self._get_cast(ftype))
                 description.append(Column(
                     name=libpq.PQfname(self._pgres, i),
                     type_code=ftype,
@@ -248,7 +236,6 @@ class Cursor(object):
                     scale=None,
                     null_ok=None,
                 ))
-
 
             self._description = tuple(description)
             self._casts = casts
@@ -382,6 +369,17 @@ class Cursor(object):
 
         """
         raise NotImplementedError()
+
+    def cast(self, oid, s):
+        """Convert a value from a PostgreSQL string to a Python object.
+
+        Use the most specific of the typecasters registered by register_type().
+
+        This is not part of the dbapi 2 standard, but a psycopg2 extension.
+
+        """
+        cast = self._get_cast(oid)
+        return cast.cast(s, self, None)
 
     def mogrify(self, query, vars=None):
         """Return the the querystring with the vars binded.
@@ -547,6 +545,17 @@ class Cursor(object):
             return tuple(row)
         return row
 
+    def _get_cast(self, oid):
+        try:
+            return self._typecasts[oid]
+        except KeyError:
+            try:
+                return self._connection._typecasts[oid]
+            except KeyError:
+                try:
+                    return typecasts.string_types[oid]
+                except KeyError:
+                    return typecasts.string_types[19]
 
 
 def _combine_cmd_params(cmd, params, conn):
