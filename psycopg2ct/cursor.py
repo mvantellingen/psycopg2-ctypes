@@ -404,7 +404,7 @@ class Cursor(object):
         """
         raise NotImplementedError()
 
-    def setoutputsizes(self, size, column=None):
+    def setoutputsize(self, size, column=None):
         """Set a column buffer size for fetches of large columns (e.g.
         LONGs, BLOBs, etc.).
 
