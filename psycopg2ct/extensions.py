@@ -277,6 +277,7 @@ ROWID = _default_type('ROWID', [26], typecasts.parse_integer)
 STRING = _default_type('STRING', [19, 18, 25, 1042, 1043], typecasts.parse_string)
 
 # Register the basic typecasters
+UNKNOWN = _default_type('UNKNOWN', [705], typecasts.parse_unknown)
 BOOLEAN = _default_type('BOOLEAN', [16], typecasts.parse_boolean)
 DATE = _default_type('DATE', [1082], typecasts.parse_date)
 DECIMAL = _default_type('DECIMAL', [1700], typecasts.parse_decimal)

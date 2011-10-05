@@ -555,7 +555,7 @@ class Cursor(object):
                 try:
                     return typecasts.string_types[oid]
                 except KeyError:
-                    return typecasts.string_types[19]
+                    return typecasts.string_types[705]
 
 
 def _combine_cmd_params(cmd, params, conn):
