@@ -8,18 +8,46 @@ from psycopg2ct._config import PG_VERSION
 from psycopg2ct.exceptions import ProgrammingError
 from psycopg2ct.exceptions import QueryCanceledError
 
-ISOLATION_LEVEL_AUTOCOMMIT = 0
-ISOLATION_LEVEL_READ_COMMITTED = ISOLATION_LEVEL_READ_UNCOMMITTED = 1
-ISOLATION_LEVEL_SERIALIZABLE = ISOLATION_LEVEL_REPEATABLE_READ = 2
+# Isolation level values.
+ISOLATION_LEVEL_AUTOCOMMIT = 0 
+ISOLATION_LEVEL_READ_UNCOMMITTED = 1 
+ISOLATION_LEVEL_READ_COMMITTED = 2 
+ISOLATION_LEVEL_REPEATABLE_READ = 3 
+ISOLATION_LEVEL_SERIALIZABLE = 4
 
+# psycopg connection status values.
+STATUS_SETUP = 0 
+STATUS_READY = 1 
+STATUS_BEGIN = 2 
+STATUS_SYNC = 3     # currently unused
+STATUS_ASYNC = 4    # currently unused
+STATUS_PREPARED = 5 
+
+# This is a usefull mnemonic to check if the connection is in a transaction
+STATUS_IN_TRANSACTION = STATUS_BEGIN
+
+# psycopg asynchronous connection polling values
+POLL_OK = 0 
+POLL_READ = 1
+POLL_WRITE = 2
+POLL_ERROR = 3
+
+# Backend transaction status values.
 TRANSACTION_STATUS_IDLE = 0
 TRANSACTION_STATUS_ACTIVE = 1
 TRANSACTION_STATUS_INTRANS = 2
 TRANSACTION_STATUS_INERROR = 3
 TRANSACTION_STATUS_UNKNOWN = 4
 
-STATUS_BEGIN = -1
-STATUS_READY = -1
+import sys as _sys
+
+# Return bytes from a string
+if _sys.version_info[0] < 3:
+    def b(s):
+        return s
+else:
+    def b(s):
+        return s.encode('utf8')
 
 adapters = {}
 
@@ -39,6 +67,7 @@ encodings = {
 }
 
 string_types = {}
+
 
 
 class _BaseAdapter(object):
@@ -191,9 +220,6 @@ class NoneAdapter(_BaseAdapter):
 class SQL_IN(_BaseAdapter):
     pass
 
-
-def b(value):
-    return value
 
 def adapt(value):
     """Return the adapter for the given value"""
