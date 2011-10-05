@@ -50,6 +50,7 @@ class Connection(object):
         self._typecasts = {}
         self._tpc_xid = None
         self._notices = deque(maxlen=50)
+        self._isolation_level = None
 
         # Connect
         self._pgconn = libpq.PQconnectdb(dsn)
@@ -88,6 +89,10 @@ class Connection(object):
     def reset(self):
         self._setup()
 
+    @property
+    def isolation_level(self):
+        return self._isolation_level
+
     @check_closed
     def set_isolation_level(self, level):
         if level < 0 or level > 2:
@@ -98,9 +103,16 @@ class Connection(object):
             self._rollback()
         self.isolation_level = level
 
-    def set_session(isolation_level=None, readonly=None, deferrable=None, 
+    def set_session(self, isolation_level=None, readonly=None, deferrable=None, 
                     autocommit=None):
-        raise NotImplementedError()
+        if isolation_level is not None:
+            if isolation_level < 1 or isolation_level > 4:
+                raise ValueError('isolation level must be between 1 and 4')
+            if self._isolation_level == level:
+                return
+            if self._isolation_level != self.ISOLATION_LEVEL_AUTOCOMMIT:
+                self._rollback()
+            self._isolation_level = level
 
     @property
     def autocommit(self):
@@ -174,7 +186,7 @@ class Connection(object):
             raise exceptions.ProgrammingError(
                 'tpc_begin must be called outside a transaction')
 
-        if self.isolation_level == self.ISOLATION_LEVEL_AUTOCOMMIT:
+        if self._isolation_level == self.ISOLATION_LEVEL_AUTOCOMMIT:
             raise exceptions.ProgrammingError(
                 "tpc_begin can't be called in autocommit mode")
 
@@ -207,9 +219,9 @@ class Connection(object):
         # Get current isolation level
         if (isolation_level == 'read uncommitted' or
             isolation_level == 'read committed'):
-            self.isolation_level = self.ISOLATION_LEVEL_READ_COMMITTED
+            self._isolation_level = self.ISOLATION_LEVEL_READ_COMMITTED
         else:
-            self.isolation_level = self.ISOLATION_LEVEL_SERIALIZABLE
+            self._isolation_level = self.ISOLATION_LEVEL_SERIALIZABLE
 
         # Get encoding
         client_encoding = libpq.PQparameterStatus(self._pgconn, 'client_encoding')
@@ -224,12 +236,12 @@ class Connection(object):
 
     def _begin_transaction(self):
         if (self.status == self.CONN_STATUS_READY and
-            self.isolation_level != self.ISOLATION_LEVEL_AUTOCOMMIT):
+            self._isolation_level != self.ISOLATION_LEVEL_AUTOCOMMIT):
             sql = [
                     None,
                     'BEGIN; SET TRANSACTION ISOLATION LEVEL READ COMMITTED',
                     'BEGIN; SET TRANSACTION ISOLATION LEVEL SERIALIZABLE',
-                ][self.isolation_level]
+                ][self._isolation_level]
 
             self._execute_command(sql)
             self.status = self.CONN_STATUS_BEGIN
@@ -288,14 +300,14 @@ class Connection(object):
         self._notices = None
 
     def _commit(self):
-        if (self.isolation_level == self.ISOLATION_LEVEL_AUTOCOMMIT or
+        if (self._isolation_level == self.ISOLATION_LEVEL_AUTOCOMMIT or
             self.status != self.CONN_STATUS_BEGIN):
             return
         self._execute_command('COMMIT')
         self.status = self.CONN_STATUS_READY
 
     def _rollback(self):
-        if (self.isolation_level == self.ISOLATION_LEVEL_AUTOCOMMIT or
+        if (self._isolation_level == self.ISOLATION_LEVEL_AUTOCOMMIT or
             self.status != self.CONN_STATUS_BEGIN):
             return
         self._execute_command('ROLLBACK')
