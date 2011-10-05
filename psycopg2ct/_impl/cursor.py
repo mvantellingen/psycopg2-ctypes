@@ -49,6 +49,7 @@ class Cursor(object):
     """
 
     def __init__(self, connection, name, row_factory=None):
+
         self._connection = connection
 
         #: This read/write attribute specifies the number of rows to fetch at
@@ -68,6 +69,7 @@ class Cursor(object):
         self._description = None
         self._lastrowid = 0
         self._name = name
+        self._withhold = False
         self._no_tuples = True
         self._rowcount = -1
         self._rownumber = 0
@@ -502,6 +504,18 @@ class Cursor(object):
 
         """
         return self._statusmessage
+
+    @property
+    def withhold(self):
+        return self._withhold
+
+    @withhold.setter
+    def withhold(self, value):
+        if not self._name:
+            raise ProgrammingError(
+                "trying to set .withhold on unnamed cursor")
+
+        self._withhold = bool(value)
 
     def _clear_pgres(self):
         if self._pgres:

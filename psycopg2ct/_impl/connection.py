@@ -145,8 +145,16 @@ class Connection(object):
     def get_transaction_status(self):
         return libpq.PQtransactionStatus(self._pgconn)
 
-    def cursor(self, name=None, cursor_factory=Cursor):
-        return cursor_factory(self, name, )
+    def cursor(self, name=None, cursor_factory=Cursor, withhold=False):
+        cur = cursor_factory(self, name)
+        if withhold:
+            if name:
+                cur.withhold = True
+            else:
+                raise exceptions.ProgrammingError(
+                    "withhold=True can be specified only for named cursors")
+
+        return cur
 
     @check_closed
     def cancel(self):
