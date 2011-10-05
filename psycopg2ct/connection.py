@@ -39,6 +39,19 @@ class Connection(object):
     CONN_STATUS_BEGIN = 2
     CONN_STATUS_PREPARED = 5
 
+    # Various exceptions which should be accessible via the Connection
+    # class according to dbapi 2.0
+    Error = exceptions.Error
+    DatabaseError = exceptions.DatabaseError
+    IntegrityError = exceptions.IntegrityError
+    InterfaceError = exceptions.InterfaceError
+    InternalError = exceptions.InternalError
+    NotSupportedError = exceptions.NotSupportedError
+    OperationalError = exceptions.OperationalError
+    ProgrammingError = exceptions.ProgrammingError
+    Warning = exceptions.Warning
+
+
     def __init__(self, dsn):
 
         self.dsn = dsn
