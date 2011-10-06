@@ -13,6 +13,10 @@ from psycopg2ct._impl.exceptions import ProgrammingError
 from psycopg2ct._impl.exceptions import QueryCanceledError
 
 
+# TODO: duplication with the consts in the connection module
+# worth creating a "consts module" where to add all of them
+# without cross-imports problems
+
 # Isolation level values.
 ISOLATION_LEVEL_AUTOCOMMIT = 0
 ISOLATION_LEVEL_READ_UNCOMMITTED = 1
