@@ -84,7 +84,10 @@ class Float(ISQLQuote):
         if math.isnan(n):
             return "'NaN'::float"
         elif math.isinf(n):
-            return "'Infinity'::float"
+            if n > 0:
+                return "'Infinity'::float"
+            else:
+                return "'-Infinity'::float"
         else:
             value = repr(self._wrapped)
 
