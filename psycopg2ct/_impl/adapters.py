@@ -93,6 +93,9 @@ class Binary(_BaseAdapter):
         return self
 
     def getquoted(self):
+        if self._wrapped is None:
+            return 'NULL'
+
         to_length = libpq.c_uint()
 
         if self._conn:
