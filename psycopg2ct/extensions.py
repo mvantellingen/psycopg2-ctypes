@@ -22,7 +22,6 @@ from psycopg2ct._impl.adapters import QuotedString, AsIs, ISQLQuote
 # The following are not available in psycopg2.extensions so figure that out.
 from psycopg2ct._impl.adapters import List, DateTime, Decimal
 
-
 import sys as _sys
 
 # Return bytes from a string
