@@ -388,6 +388,9 @@ class Cursor(object):
         This is not part of the dbapi 2 standard, but a psycopg2 extension.
 
         """
+        if isinstance(query, unicode):
+            query = query.encode(self._connection._py_enc)
+
         return _combine_cmd_params(query, vars, self._connection)
 
     def setinputsizes(self, sizes):
