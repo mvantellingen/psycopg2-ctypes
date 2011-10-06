@@ -11,34 +11,6 @@ from psycopg2ct._config import PG_VERSION
 adapters = {}
 
 
-def adapt(value):
-    """Return the adapter for the given value"""
-    obj_type = type(value)
-    try:
-        return adapters[(obj_type, ISQLQuote)](value)
-    except KeyError:
-        for subtype in obj_type.mro()[1:]:
-            try:
-                return adapters[(subtype, ISQLQuote)](value)
-            except KeyError:
-                pass
-
-    conform = getattr(value, '__conform__', None)
-    if conform is not None:
-        return conform()
-    raise ProgrammingError("can't adapt type '%s'", obj_type)
-
-
-def _getquoted(param, conn):
-    """Helper method"""
-    adapter = adapt(param)
-    try:
-        adapter.prepare(conn)
-    except AttributeError:
-        pass
-    return adapter.getquoted()
-
-
 class _BaseAdapter(object):
     def __init__(self, wrapped_object):
         self._wrapped = wrapped_object
@@ -118,7 +90,7 @@ class Binary(_BaseAdapter):
     def prepare(self, connection):
         self._conn = connection
 
-    def __conform__(self):
+    def __conform__(self, proto):
         return self
 
     def getquoted(self):
@@ -212,6 +184,34 @@ class QuotedString(_BaseAdapter):
         data = libpq.cast(data_pointer, libpq.c_char_p).value
         libpq.PQfreemem(data_pointer)
         return data
+
+
+def adapt(value, proto=ISQLQuote, alt=None):
+    """Return the adapter for the given value"""
+    obj_type = type(value)
+    try:
+        return adapters[(obj_type, proto)](value)
+    except KeyError:
+        for subtype in obj_type.mro()[1:]:
+            try:
+                return adapters[(subtype, proto)](value)
+            except KeyError:
+                pass
+
+    conform = getattr(value, '__conform__', None)
+    if conform is not None:
+        return conform(proto)
+    raise ProgrammingError("can't adapt type '%s'", obj_type)
+
+
+def _getquoted(param, conn):
+    """Helper method"""
+    adapter = adapt(param)
+    try:
+        adapter.prepare(conn)
+    except AttributeError:
+        pass
+    return adapter.getquoted()
 
 
 
