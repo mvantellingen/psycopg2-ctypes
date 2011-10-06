@@ -62,7 +62,6 @@ class parse_array(object):
         return self(value, length, cursor)
 
     def __call__(self, value, length, cursor):
-        from psycopg2ct.extensions import typecast
 
         s = value
         assert s[0] == "{" and s[-1] == "}"
