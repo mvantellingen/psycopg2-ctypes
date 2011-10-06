@@ -222,7 +222,6 @@ built_in_adapters = {
     list: List,
     bytearray: Binary,
     buffer: Binary,
-    memoryview: Binary,
     int: Int,
     long: Long,
     float: Float,
@@ -232,6 +231,12 @@ built_in_adapters = {
     datetime.timedelta: DateTime, # IntervalFromPy
     decimal.Decimal: Decimal,
 }
+
+try:
+    built_in_adapters[memoryview] = Binary
+except NameError:
+    # Python 2.6
+    pass
 
 for k, v in built_in_adapters.iteritems():
     adapters[(k, ISQLQuote)] = v
