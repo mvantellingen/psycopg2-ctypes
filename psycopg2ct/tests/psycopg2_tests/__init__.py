@@ -27,17 +27,17 @@ import sys
 from testconfig import dsn
 from testutils import unittest
 
-import bug_gc
-import bugX000
-import extras_dictcursor
+import test_bug_gc
+import test_bugX000
+import test_extras_dictcursor
 import test_dates
 import test_psycopg2_dbapi20
 import test_quote
 import test_connection
 import test_cursor
 import test_transaction
-import types_basic
-import types_extras
+import test_types_basic
+import test_types_extras
 import test_lobject
 import test_copy
 import test_notify

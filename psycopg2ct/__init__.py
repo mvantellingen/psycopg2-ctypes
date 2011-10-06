@@ -8,6 +8,8 @@ from psycopg2ct._impl.connection import connect
 from psycopg2ct._impl.exceptions import *
 from psycopg2ct.tz import LOCAL as _LOCAL
 
+from psycopg2ct import tz
+
 __version__ = '2.4'
 apilevel = '2.0'
 paramstyle = 'pyformat'
@@ -43,3 +45,7 @@ def TimestampFromTicks(ticks):
     dt = datetime.datetime.fromtimestamp(ticks, _LOCAL)
     return extensions.DateTime(dt)
 
+
+import psycopg2ct.extensions as _ext
+_ext.register_adapter(tuple, _ext.SQL_IN)
+_ext.register_adapter(type(None), _ext.NoneAdapter)

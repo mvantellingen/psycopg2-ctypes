@@ -62,8 +62,6 @@ class parse_array(object):
         return self(value, length, cursor)
 
     def __call__(self, value, length, cursor):
-        from psycopg2ct.extensions import typecast
-
         s = value
         assert s[0] == "{" and s[-1] == "}"
         i = 1
@@ -84,33 +82,34 @@ class parse_array(object):
             elif s[i] in ', ':
                 i += 1
             else:
-                start = i
-
                 # Number of quotes, this will always be 0 or 2 (int vs str)
                 quotes = 0
 
                 # Whether or not the next char should be escaped
                 escape_char = False
 
+                buf = []
                 while i < value_length:
-                    if s[i] == '"':
-                        if not escape_char:
+                    if not escape_char:
+                        if s[i] == '"':
                             quotes += 1
-                    elif s[i] == '\\':
-                        escape_char = not escape_char
-                    elif s[i] == '}' or s[i] == ',':
-                        if not escape_char and quotes % 2 == 0:
+                        elif s[i] == '\\':
+                            escape_char = True
+                        elif quotes % 2 == 0 and (s[i] == '}' or s[i] == ','):
                             break
+                        else:
+                            buf.append(s[i])
+                    else:
+                        escape_char = False
+                        buf.append(s[i])
+
                     i += 1
 
-                if quotes:
-                    start += 1
-                    end = i - 1
+                str_buf = ''.join(buf)
+                if len(str_buf) == 4 and str_buf.lower() == 'null':
+                    val = typecast(self._caster, None, 0, cursor)
                 else:
-                    end = i
-
-                str_buf = s[start:end].replace(r'\\', '\\')
-                val = typecast(self._caster, str_buf, end - start, cursor)
+                    val = typecast(self._caster, str_buf, len(str_buf), cursor)
                 array.append(val)
         return stack[-1]
 
