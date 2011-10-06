@@ -230,11 +230,11 @@ class Connection(object):
 
     @check_closed
     def tpc_begin(self, xid):
-        if self.status != CONN_STATUS_READY:
+        if self.status != consts.STATUS_READY:
             raise exceptions.ProgrammingError(
                 'tpc_begin must be called outside a transaction')
 
-        if self._isolation_level == ISOLATION_LEVEL_AUTOCOMMIT:
+        if self._autocommit:
             raise exceptions.ProgrammingError(
                 "tpc_begin can't be called in autocommit mode")
 
@@ -243,11 +243,11 @@ class Connection(object):
 
     @check_closed
     def tpc_commit(self):
-        self._finish_tpc('COMMIT PREPARED', 'commit')
+        self._finish_tpc('COMMIT PREPARED', self._commit)
 
     @check_closed
     def tpc_rollback(self):
-        self._finish_tpc('ROLLBACK PREPARED', 'abort')
+        self._finish_tpc('ROLLBACK PREPARED', self._rollback)
 
     @check_closed
     def tpc_prepare(self):
@@ -255,22 +255,13 @@ class Connection(object):
             raise exceptions.ProgrammingError(
                 'prepare must be called inside a two-phase transaction')
 
+        self._execute_tpc_command('PREPARE TRANSACTION')
+
+    @check_closed
+    def tpc_recover(self):
+        return Xid.tpc_recover(self)
+
     def _setup(self):
-        pgres = libpq.PQexec(self._pgconn, 'SHOW default_transaction_isolation')
-        if not pgres or libpq.PQresultStatus(pgres) != libpq.PGRES_TUPLES_OK:
-            raise exceptions.OperationalError(
-                "can't fetch default_isolation_level")
-
-        isolation_level = libpq.PQgetvalue(pgres, 0, 0)
-        libpq.PQclear(pgres)
-
-        # Get current isolation level
-        if (isolation_level == 'read uncommitted' or
-            isolation_level == 'read committed'):
-            self._isolation_level = ISOLATION_LEVEL_READ_COMMITTED
-        else:
-            self._isolation_level = ISOLATION_LEVEL_SERIALIZABLE
-
         # Get encoding
         client_encoding = libpq.PQparameterStatus(self._pgconn, 'client_encoding')
         self._encoding = _enc.normalize(client_encoding)

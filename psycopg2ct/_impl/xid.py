@@ -1,6 +1,9 @@
 
 import re
 
+from psycopg2ct._impl import consts
+
+
 class Xid(object):
     def __init__(self, format_id, gtrid, bqual):
         if not 0 <= format_id <= 0x7FFFFFFF:
@@ -23,6 +26,10 @@ class Xid(object):
         self.format_id = format_id
         self.gtrid = gtrid
         self.bqual = bqual
+
+        self.prepared = None
+        self.owner = None
+        self.database = None
 
     def as_tid(self):
         if self.format_id is not None:
@@ -66,4 +73,29 @@ class Xid(object):
         elif idx == 2:
             return self.bqual
         raise IndexError("index out of range")
+
+    @classmethod
+    def tpc_recover(self, conn):
+        # should we rollback?
+        rb = conn.status == consts.STATUS_READY and not conn.autocommit
+
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT gid, prepared, owner, database "
+                "FROM pg_prepared_xacts")
+
+            rv = []
+            for gid, prepared, owner, database in cur:
+                xid = Xid.from_string(gid)
+                xid.prepared = prepared
+                xid.owner = owner
+                xid.database = database
+                rv.append(xid)
+
+            return rv
+
+        finally:
+            if rb:
+                conn.rollback()
 
