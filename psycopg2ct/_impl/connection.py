@@ -1,6 +1,7 @@
 from functools import wraps
 from collections import deque
 
+from psycopg2ct._impl import consts
 from psycopg2ct._impl import encodings as _enc
 from psycopg2ct._impl import exceptions
 from psycopg2ct._impl import libpq
@@ -8,16 +9,20 @@ from psycopg2ct._impl.cursor import Cursor
 from psycopg2ct._impl.xid import Xid
 
 
-CONN_STATUS_SETUP = 0
-CONN_STATUS_READY = 1
-CONN_STATUS_BEGIN = 2
-CONN_STATUS_PREPARED = 5
+# Map between isolation levels names and values and back.
+_isolevels = {
+    '':                 consts.ISOLATION_LEVEL_AUTOCOMMIT,
+    'read uncommitted': consts.ISOLATION_LEVEL_READ_UNCOMMITTED,
+    'read committed':   consts.ISOLATION_LEVEL_READ_COMMITTED,
+    'repeatable read':  consts.ISOLATION_LEVEL_REPEATABLE_READ,
+    'serializable':     consts.ISOLATION_LEVEL_SERIALIZABLE,
+    'default':         -1,
+}
 
-ISOLATION_LEVEL_AUTOCOMMIT = 0
-ISOLATION_LEVEL_READ_UNCOMMITTED = 1
-ISOLATION_LEVEL_READ_COMMITTED = 2
-ISOLATION_LEVEL_REPEATABLE_READ = 3
-ISOLATION_LEVEL_SERIALIZABLE = 4
+for k, v in _isolevels.items():
+    _isolevels[v] = k
+
+del k, v
 
 
 def check_closed(func):
@@ -28,6 +33,13 @@ def check_closed(func):
         return func(self, *args, **kwargs)
     return check_closed_
 
+def check_notrans(func):
+    @wraps(func)
+    def check_notrans_(self, *args, **kwargs):
+        if self.status != consts.STATUS_READY:
+            raise exceptions.ProgrammingError('not valid in transaction')
+        return func(self, *args, **kwargs)
+    return check_notrans_
 
 def check_tpc(command):
     def decorator(func):
@@ -59,7 +71,7 @@ class Connection(object):
     def __init__(self, dsn):
 
         self.dsn = dsn
-        self.status = CONN_STATUS_SETUP
+        self.status = consts.STATUS_SETUP
         self._encoding = None
 
         self._closed = True
@@ -265,7 +277,7 @@ class Connection(object):
             raise exceptions.OperationalError("can't get cancellation key")
 
         self._closed = False
-        self.status = CONN_STATUS_READY
+        self.status = consts.STATUS_READY
 
     def _begin_transaction(self):
         if (self.status == CONN_STATUS_READY and
@@ -321,7 +333,7 @@ class Connection(object):
             raise exceptions.InterfaceError(
                 'unexpected state in tpc_commit/tpc_rollback')
 
-        self.status = CONN_STATUS_READY
+        self.status = consts.STATUS_READY
         self._tpc_xid = None
 
     def _close(self):
@@ -337,14 +349,14 @@ class Connection(object):
             self.status != CONN_STATUS_BEGIN):
             return
         self._execute_command('COMMIT')
-        self.status = CONN_STATUS_READY
+        self.status = consts.STATUS_READY
 
     def _rollback(self):
         if (self._isolation_level == ISOLATION_LEVEL_AUTOCOMMIT or
             self.status != CONN_STATUS_BEGIN):
             return
         self._execute_command('ROLLBACK')
-        self.status = CONN_STATUS_READY
+        self.status = consts.STATUS_READY
 
     def _raise_operational_error(self, pgres):
         code = None
