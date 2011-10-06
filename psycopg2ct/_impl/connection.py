@@ -21,22 +21,22 @@ ISOLATION_LEVEL_SERIALIZABLE = 4
 
 def check_closed(func):
     @wraps(func)
-    def wrapper(self, *args, **kwargs):
+    def check_closed_(self, *args, **kwargs):
         if self.closed:
             raise exceptions.InterfaceError('connection already closed')
         return func(self, *args, **kwargs)
-    return wrapper
+    return check_closed_
 
 
 def check_tpc(command):
     def decorator(func):
         @wraps(func)
-        def wrapper(self, *args, **kwargs):
+        def check_tpc_(self, *args, **kwargs):
             if self._tpc_xid:
                 raise exceptions.ProgrammingError(
                     '%s cannot be used during a two-phase transaction' % command)
             return func(self, *args, **kwargs)
-        return wrapper
+        return check_tpc_
     return decorator
 
 

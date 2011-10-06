@@ -12,11 +12,11 @@ from psycopg2ct._impl.exceptions import InterfaceError, ProgrammingError
 def check_closed(func):
     """Check if the connection is closed and raise an error"""
     @wraps(func)
-    def wrapper(self, *args, **kwargs):
+    def check_closed_(self, *args, **kwargs):
         if self.closed:
             raise InterfaceError("connection already closed")
         return func(self, *args, **kwargs)
-    return wrapper
+    return check_closed_
 
 
 def check_no_tuples(func):
@@ -25,11 +25,11 @@ def check_no_tuples(func):
 
     """
     @wraps(func)
-    def wrapper(self, *args, **kwargs):
+    def check_no_tuples_(self, *args, **kwargs):
         if self._no_tuples:
             raise ProgrammingError("no results to fetch")
         return func(self, *args, **kwargs)
-    return wrapper
+    return check_no_tuples_
 
 # Used for Cursor.description
 Column = namedtuple('Column', ['name', 'type_code', 'display_size',
