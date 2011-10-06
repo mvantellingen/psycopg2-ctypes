@@ -1,6 +1,7 @@
 from functools import wraps
 from collections import deque
 
+from psycopg2ct._impl import encodings as _enc
 from psycopg2ct._impl import exceptions
 from psycopg2ct._impl import libpq
 from psycopg2ct._impl.cursor import Cursor
@@ -59,7 +60,7 @@ class Connection(object):
 
         self.dsn = dsn
         self.status = CONN_STATUS_SETUP
-        self.encoding = None
+        self._encoding = None
 
         self._closed = True
         self._cancel = None
@@ -163,14 +164,21 @@ class Connection(object):
         if libpq.PQcancel(self._cancel, errbuf, len(errbuf)) == 0:
             self._raise_operational_error(errbuf)
 
+    @property
+    def encoding(self):
+        return self._encoding
+
     @check_closed
     def set_client_encoding(self, encoding):
-        encoding = ''.join([c for c in encoding if c != '-' and c != '_'])
+        encoding = _enc.normalize(encoding)
         if self.encoding == encoding:
             return
+
+        pyenc = _enc.encodings[encoding]
         self._rollback()
         self._execute_command('SET client_encoding = %s' % encoding)
-        self.encoding = encoding
+        self._encoding = encoding
+        self._py_enc = pyenc
 
     def get_exc_type_for_state(self, code):
         exc_type = None
@@ -249,7 +257,8 @@ class Connection(object):
 
         # Get encoding
         client_encoding = libpq.PQparameterStatus(self._pgconn, 'client_encoding')
-        self.encoding = client_encoding.upper()
+        self._encoding = _enc.normalize(client_encoding)
+        self._py_enc = _enc.encodings[self.encoding]
 
         self._cancel = libpq.PQgetCancel(self._pgconn)
         if self._cancel is None:

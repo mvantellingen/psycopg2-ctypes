@@ -2,7 +2,6 @@ from functools import wraps
 from collections import namedtuple
 
 from psycopg2ct import tz
-from psycopg2ct._impl.encodings import encodings
 from psycopg2ct._impl import libpq
 from psycopg2ct._impl import typecasts
 from psycopg2ct._impl.adapters import _getquoted
@@ -187,8 +186,7 @@ class Cursor(object):
         conn = self._connection
 
         if isinstance(query, unicode):
-            encoding = encodings[self._connection.encoding]
-            query = query.encode(encoding)
+            query = query.encode(self._connection._py_enc)
 
         if parameters is not None:
             self._query = _combine_cmd_params(query, parameters, conn)
