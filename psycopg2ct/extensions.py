@@ -7,10 +7,12 @@ from psycopg2ct._impl import libpq
 from psycopg2ct._impl import typecasts
 from psycopg2ct._impl.adapters import adapt, adapters
 from psycopg2ct._impl.connection import Connection as connection
+from psycopg2ct._impl.consts import *
 from psycopg2ct._impl.cursor import Cursor as cursor
 from psycopg2ct._impl.encodings import encodings
 from psycopg2ct._impl.exceptions import ProgrammingError
 from psycopg2ct._impl.exceptions import QueryCanceledError
+from psycopg2ct._impl.xid import Xid
 
 
 from psycopg2ct._impl.adapters import Binary, Boolean, Int, Float
@@ -19,38 +21,6 @@ from psycopg2ct._impl.adapters import QuotedString, AsIs, ISQLQuote
 
 # The following are not available in psycopg2.extensions so figure that out.
 from psycopg2ct._impl.adapters import List, DateTime, Decimal
-
-
-# Isolation level values.
-ISOLATION_LEVEL_AUTOCOMMIT = 0
-ISOLATION_LEVEL_READ_UNCOMMITTED = 1
-ISOLATION_LEVEL_READ_COMMITTED = 2
-ISOLATION_LEVEL_REPEATABLE_READ = 3
-ISOLATION_LEVEL_SERIALIZABLE = 4
-
-# psycopg connection status values.
-STATUS_SETUP = 0
-STATUS_READY = 1
-STATUS_BEGIN = 2
-STATUS_SYNC = 3     # currently unused
-STATUS_ASYNC = 4    # currently unused
-STATUS_PREPARED = 5
-
-# This is a usefull mnemonic to check if the connection is in a transaction
-STATUS_IN_TRANSACTION = STATUS_BEGIN
-
-# psycopg asynchronous connection polling values
-POLL_OK = 0
-POLL_READ = 1
-POLL_WRITE = 2
-POLL_ERROR = 3
-
-# Backend transaction status values.
-TRANSACTION_STATUS_IDLE = 0
-TRANSACTION_STATUS_ACTIVE = 1
-TRANSACTION_STATUS_INTRANS = 2
-TRANSACTION_STATUS_INERROR = 3
-TRANSACTION_STATUS_UNKNOWN = 4
 
 import sys as _sys
 

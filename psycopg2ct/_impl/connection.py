@@ -1,6 +1,7 @@
 from functools import wraps
 from collections import deque
 
+from psycopg2ct._impl import consts
 from psycopg2ct._impl import encodings as _enc
 from psycopg2ct._impl import exceptions
 from psycopg2ct._impl import libpq
@@ -8,16 +9,20 @@ from psycopg2ct._impl.cursor import Cursor
 from psycopg2ct._impl.xid import Xid
 
 
-CONN_STATUS_SETUP = 0
-CONN_STATUS_READY = 1
-CONN_STATUS_BEGIN = 2
-CONN_STATUS_PREPARED = 5
+# Map between isolation levels names and values and back.
+_isolevels = {
+    '':                 consts.ISOLATION_LEVEL_AUTOCOMMIT,
+    'read uncommitted': consts.ISOLATION_LEVEL_READ_UNCOMMITTED,
+    'read committed':   consts.ISOLATION_LEVEL_READ_COMMITTED,
+    'repeatable read':  consts.ISOLATION_LEVEL_REPEATABLE_READ,
+    'serializable':     consts.ISOLATION_LEVEL_SERIALIZABLE,
+    'default':         -1,
+}
 
-ISOLATION_LEVEL_AUTOCOMMIT = 0
-ISOLATION_LEVEL_READ_UNCOMMITTED = 1
-ISOLATION_LEVEL_READ_COMMITTED = 2
-ISOLATION_LEVEL_REPEATABLE_READ = 3
-ISOLATION_LEVEL_SERIALIZABLE = 4
+for k, v in _isolevels.items():
+    _isolevels[v] = k
+
+del k, v
 
 
 def check_closed(func):
@@ -28,17 +33,23 @@ def check_closed(func):
         return func(self, *args, **kwargs)
     return check_closed_
 
+def check_notrans(func):
+    @wraps(func)
+    def check_notrans_(self, *args, **kwargs):
+        if self.status != consts.STATUS_READY:
+            raise exceptions.ProgrammingError('not valid in transaction')
+        return func(self, *args, **kwargs)
+    return check_notrans_
 
-def check_tpc(command):
-    def decorator(func):
-        @wraps(func)
-        def check_tpc_(self, *args, **kwargs):
-            if self._tpc_xid:
-                raise exceptions.ProgrammingError(
-                    '%s cannot be used during a two-phase transaction' % command)
-            return func(self, *args, **kwargs)
-        return check_tpc_
-    return decorator
+def check_tpc(func):
+    @wraps(func)
+    def check_tpc_(self, *args, **kwargs):
+        if self._tpc_xid:
+            raise exceptions.ProgrammingError(
+                '%s cannot be used during a two-phase transaction'
+                % func.__name__)
+        return func(self, *args, **kwargs)
+    return check_tpc_
 
 
 class Connection(object):
@@ -59,7 +70,7 @@ class Connection(object):
     def __init__(self, dsn):
 
         self.dsn = dsn
-        self.status = CONN_STATUS_SETUP
+        self.status = consts.STATUS_SETUP
         self._encoding = None
 
         self._closed = True
@@ -67,7 +78,7 @@ class Connection(object):
         self._typecasts = {}
         self._tpc_xid = None
         self._notices = deque(maxlen=50)
-        self._isolation_level = None
+        self._autocommit = False
 
         # Connect
         self._pgconn = libpq.PQconnectdb(dsn)
@@ -93,51 +104,113 @@ class Connection(object):
         return self._close()
 
     @check_closed
-    @check_tpc('rollback')
+    @check_tpc
     def rollback(self):
         self._rollback()
 
     @check_closed
-    @check_tpc('commit')
+    @check_tpc
     def commit(self):
         self._commit()
 
     @check_closed
     def reset(self):
-        self._setup()
+        self._execute_command(
+            "ABORT; RESET ALL; SET SESSION AUTHORIZATION DEFAULT;")
+        self.status = consts.STATUS_READY
+        self._autocommit = False
+        self._tpc_xid = None
+
+    def _get_guc(self, name):
+        """Return the value of a configuration parameter."""
+        pgres = libpq.PQexec(self._pgconn, 'SHOW %s' % name)
+        if not pgres or libpq.PQresultStatus(pgres) != libpq.PGRES_TUPLES_OK:
+            raise exceptions.OperationalError(
+                "can't fetch %s" % name)
+
+        rv = libpq.PQgetvalue(pgres, 0, 0)
+        libpq.PQclear(pgres)
+
+        return rv
+
+    def _set_guc(self, name, value):
+        """Set the value of a configuration parameter."""
+        if value.lower() != 'default':
+            # TODO: use the string adapter here
+            value = "'%s'" % value;
+
+        self._execute_command('SET %s TO %s' % (name, value))
+
+    def _set_guc_onoff(self, name, value):
+        """Set the value of a configuration parameter to a boolean.
+        
+        The string 'default' is accepted too.
+        """
+        if isinstance(value, basestring) and value.lower() == 'default':
+            value = 'default'
+        else:
+            value = value and 'on' or 'off'
+
+        self._set_guc(name, value)
 
     @property
-    def isolation_level(self):
-        return self._isolation_level
-
     @check_closed
+    def isolation_level(self):
+        if self._autocommit:
+            return consts.ISOLATION_LEVEL_AUTOCOMMIT
+        else:
+            name = self._get_guc('default_transaction_isolation')
+            return _isolevels[name.lower()]
+
     def set_isolation_level(self, level):
         if level < 0 or level > 4:
             raise ValueError('isolation level must be between 0 and 4')
-        if self._isolation_level == level:
-            return
-        if self._isolation_level != ISOLATION_LEVEL_AUTOCOMMIT:
-            self._rollback()
-        self._isolation_level = level
 
+        prev = self.isolation_level
+        if prev == level:
+            return
+
+        self._rollback()
+        if level == consts.ISOLATION_LEVEL_AUTOCOMMIT:
+            return self.set_session(autocommit=True)
+        else:
+            return self.set_session(isolation_level=level, autocommit=False)
+
+    @check_closed
+    @check_notrans
     def set_session(self, isolation_level=None, readonly=None, deferrable=None,
                     autocommit=None):
         if isolation_level is not None:
-            if isolation_level < 1 or isolation_level > 4:
-                raise ValueError('isolation level must be between 1 and 4')
-            if self._isolation_level == isolation_level:
-                return
-            if self._isolation_level != ISOLATION_LEVEL_AUTOCOMMIT:
-                self._rollback()
-            self._isolation_level = isolation_level
+            if isinstance(isolation_level, int):
+                if isolation_level < 1 or isolation_level > 4:
+                    raise ValueError('isolation level must be between 1 and 4')
+                isolation_level = _isolevels[isolation_level]
+            elif isinstance(isolation_level, basestring):
+                if not isolation_level \
+                or isolation_level.lower() not in _isolevels:
+                    raise ValueError("bad value for isolation level: '%s'" %
+                        isolation_level)
+            else:
+                raise TypeError("bad isolation level: '%r'" % isolation_level)
+
+            self._set_guc("default_transaction_isolation", isolation_level)
+
+        if readonly is not None:
+            self._set_guc_onoff('default_transaction_read_only', readonly)
+
+        if deferrable is not None:
+            self._set_guc_onoff('default_transaction_deferrable', deferrable)
+
+        if autocommit is not None:
+            self._autocommit = bool(autocommit)
 
     @property
     def autocommit(self):
-        raise NotImplementedError()
+        return self._autocommit
 
     @autocommit.setter
     def autocommit(self, value):
-        raise NotImplementedError()
+        self.set_session(autocommit=value)
 
     @check_closed
     def get_backend_pid(self):
@@ -161,6 +234,7 @@ class Connection(object):
         return cur
 
     @check_closed
+    @check_tpc
     def cancel(self):
         errbuf = libpq.create_string_buffer(256)
 
@@ -179,7 +253,7 @@ class Connection(object):
 
         pyenc = _enc.encodings[encoding]
         self._rollback()
-        self._execute_command('SET client_encoding = %s' % encoding)
+        self._set_guc('client_encoding', encoding)
         self._encoding = encoding
         self._py_enc = pyenc
 
@@ -217,11 +291,14 @@ class Connection(object):
 
     @check_closed
     def tpc_begin(self, xid):
-        if self.status != CONN_STATUS_READY:
+        if not isinstance(xid, Xid):
+            xid = Xid.from_string(xid)
+
+        if self.status != consts.STATUS_READY:
             raise exceptions.ProgrammingError(
                 'tpc_begin must be called outside a transaction')
 
-        if self._isolation_level == ISOLATION_LEVEL_AUTOCOMMIT:
+        if self._autocommit:
             raise exceptions.ProgrammingError(
                 "tpc_begin can't be called in autocommit mode")
 
@@ -229,12 +306,12 @@ class Connection(object):
         self._tpc_xid = xid
 
     @check_closed
-    def tpc_commit(self):
-        self._finish_tpc('COMMIT PREPARED', 'commit')
+    def tpc_commit(self, xid=None):
+        self._finish_tpc('COMMIT PREPARED', self._commit, xid)
 
     @check_closed
-    def tpc_rollback(self):
-        self._finish_tpc('ROLLBACK PREPARED', 'abort')
+    def tpc_rollback(self, xid=None):
+        self._finish_tpc('ROLLBACK PREPARED', self._rollback, xid)
 
     @check_closed
     def tpc_prepare(self):
@@ -242,22 +319,14 @@ class Connection(object):
             raise exceptions.ProgrammingError(
                 'prepare must be called inside a two-phase transaction')
 
+        self._execute_tpc_command('PREPARE TRANSACTION', self._tpc_xid)
+        self.status = consts.STATUS_PREPARED
+
+    @check_closed
+    def tpc_recover(self):
+        return Xid.tpc_recover(self)
+
     def _setup(self):
-        pgres = libpq.PQexec(self._pgconn, 'SHOW default_transaction_isolation')
-        if not pgres or libpq.PQresultStatus(pgres) != libpq.PGRES_TUPLES_OK:
-            raise exceptions.OperationalError(
-                "can't fetch default_isolation_level")
-
-        isolation_level = libpq.PQgetvalue(pgres, 0, 0)
-        libpq.PQclear(pgres)
-
-        # Get current isolation level
-        if (isolation_level == 'read uncommitted' or
-            isolation_level == 'read committed'):
-            self._isolation_level = ISOLATION_LEVEL_READ_COMMITTED
-        else:
-            self._isolation_level = ISOLATION_LEVEL_SERIALIZABLE
-
         # Get encoding
         client_encoding = self.get_parameter_status('client_encoding')
         self._encoding = _enc.normalize(client_encoding)
@@ -268,19 +337,12 @@ class Connection(object):
             raise exceptions.OperationalError("can't get cancellation key")
 
         self._closed = False
-        self.status = CONN_STATUS_READY
+        self.status = consts.STATUS_READY
 
     def _begin_transaction(self):
-        if (self.status == CONN_STATUS_READY and
-            self._isolation_level != ISOLATION_LEVEL_AUTOCOMMIT):
-            sql = [
-                    None,
-                    'BEGIN; SET TRANSACTION ISOLATION LEVEL READ COMMITTED',
-                    'BEGIN; SET TRANSACTION ISOLATION LEVEL SERIALIZABLE',
-                ][self._isolation_level]
-
-            self._execute_command(sql)
-            self.status = CONN_STATUS_BEGIN
+        if self.status == consts.STATUS_READY and not self._autocommit:
+            self._execute_command('BEGIN')
+            self.status = consts.STATUS_BEGIN
 
     def _execute_command(self, command):
         pgres = libpq.PQexec(self._pgconn, command)
@@ -293,39 +355,40 @@ class Connection(object):
         finally:
             libpq.PQclear(pgres)
 
-    def _execute_tpc_command(self, command):
-        from psycopg2ct import QuotedString
-
-        tid = self._tpc_xid.as_tid()
-        tid = QuotedString(tid)
+    def _execute_tpc_command(self, command, xid):
+        from psycopg2ct.extensions import QuotedString
+        tid = QuotedString(str(xid))
         tid.prepare(self)
-        tid = str(tid.quote())
-        cmd = '%s %s;' % (command, tid)
+        cmd = '%s %s' % (command, tid)
         self._execute_command(cmd)
 
-    def _finish_tpc(self, command, fallback):
+    def _finish_tpc(self, command, fallback, xid):
+        if xid:
+            # committing/aborting a received transaction.
+            if self.status != consts.STATUS_READY:
+                raise exceptions.ProgrammingError(
+                    "tpc_commit/tpc_rollback with a xid "
+                    "must be called outside a transaction")
 
-        if not self._tpc_xid:
-            raise exceptions.ProgrammingError(
-                'tpc_commit/tpc_rollback with no parameter must be '
-                'called in a two-phase transaction')
+            self._execute_tpc_command(command, xid)
 
-        if self.status == CONN_STATUS_BEGIN:
-            if fallback == 'commit':
-                self._commit()
-            elif fallback == 'abort':
-                self._rollback()
-            else:
-                raise exceptions.InternalError(
-                    'bad fallback passed to finish_tpc')
-        elif self.status == CONN_STATUS_PREPARED:
-            self._execute_tpc_command(command)
         else:
-            raise exceptions.InterfaceError(
-                'unexpected state in tpc_commit/tpc_rollback')
+            # committing/aborting our own transaction.
+            if not self._tpc_xid:
+                raise exceptions.ProgrammingError(
+                    "tpc_commit/tpc_rollback with no parameter "
+                    "must be called in a two-phase transaction")
 
-        self.status = CONN_STATUS_READY
-        self._tpc_xid = None
+            if self.status == consts.STATUS_BEGIN:
+                fallback()
+            elif self.status == consts.STATUS_PREPARED:
+                self._execute_tpc_command(command, self._tpc_xid)
+            else:
+                raise exceptions.InterfaceError(
+                    'unexpected state in tpc_commit/tpc_rollback')
+
+            self.status = consts.STATUS_READY
+            self._tpc_xid = None
 
     def _close(self):
         self._closed = True
@@ -336,18 +399,16 @@ class Connection(object):
         self._notices = None
 
     def _commit(self):
-        if (self._isolation_level == ISOLATION_LEVEL_AUTOCOMMIT or
-            self.status != CONN_STATUS_BEGIN):
+        if self._autocommit or self.status != consts.STATUS_BEGIN:
             return
         self._execute_command('COMMIT')
-        self.status = CONN_STATUS_READY
+        self.status = consts.STATUS_READY
 
     def _rollback(self):
-        if (self._isolation_level == ISOLATION_LEVEL_AUTOCOMMIT or
-            self.status != CONN_STATUS_BEGIN):
+        if self._autocommit or self.status != consts.STATUS_BEGIN:
             return
         self._execute_command('ROLLBACK')
-        self.status = CONN_STATUS_READY
+        self.status = consts.STATUS_READY
 
     def _raise_operational_error(self, pgres):
         code = None
