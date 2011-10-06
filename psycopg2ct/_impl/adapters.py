@@ -58,8 +58,24 @@ class AsIs(_BaseAdapter):
         return str(self._wrapped)
 
 
-class Int(AsIs):
-    pass
+class Int(_BaseAdapter):
+    def getquoted(self):
+        value = str(self._wrapped)
+
+        # Prepend a space in front of negative numbers
+        if value.startswith('-'):
+            value = ' ' + value
+        return value
+
+
+class Long(_BaseAdapter):
+    def getquoted(self):
+        value = str(self._wrapped)
+
+        # Prepend a space in front of negative numbers
+        if value.startswith('-'):
+            value = ' ' + value
+        return value
 
 
 class Float(ISQLQuote):
@@ -70,13 +86,23 @@ class Float(ISQLQuote):
         elif math.isinf(n):
             return "'Infinity'::float"
         else:
-            return repr(self._wrapped)
+            value = repr(self._wrapped)
+
+            # Prepend a space in front of negative numbers
+            if value.startswith('-'):
+                value = ' ' + value
+            return value
 
 
 class Decimal(_BaseAdapter):
     def getquoted(self):
         if self._wrapped.is_finite():
-            return str(self._wrapped)
+            value = str(self._wrapped)
+
+            # Prepend a space in front of negative numbers
+            if value.startswith('-'):
+                value = ' ' + value
+            return value
         return "'NaN'::numeric"
 
 
@@ -194,8 +220,8 @@ built_in_adapters = {
     bytearray: Binary,
     buffer: Binary,
     memoryview: Binary,
-    int: AsIs,
-    long: AsIs,
+    int: Int,
+    long: Long,
     float: Float,
     datetime.date: DateTime, # DateFromPY
     datetime.datetime: DateTime, # TimestampFromPy
