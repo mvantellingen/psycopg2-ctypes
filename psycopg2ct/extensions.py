@@ -140,8 +140,13 @@ def register_type(type_obj, scope=None):
         typecasts[value] = type_obj
 
 
-def new_type(oids, name, adapter):
-    return Type(name, oids, py_caster=adapter)
+def new_type(values, name, castobj):
+    return Type(name, values, py_caster=castobj)
+
+
+def new_array_type(values, name, baseobj):
+    caster = typecasts.parse_array(baseobj)
+    return Type(name, values, caster=caster)
 
 
 def _default_type(name, oids, caster):
