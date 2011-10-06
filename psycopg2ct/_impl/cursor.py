@@ -2,7 +2,6 @@ from functools import wraps
 from collections import namedtuple
 
 from psycopg2ct import tz
-from psycopg2ct._impl import encodings
 from psycopg2ct._impl import libpq
 from psycopg2ct._impl import typecasts
 from psycopg2ct._impl.adapters import _getquoted
@@ -12,11 +11,11 @@ from psycopg2ct._impl.exceptions import InterfaceError, ProgrammingError
 def check_closed(func):
     """Check if the connection is closed and raise an error"""
     @wraps(func)
-    def wrapper(self, *args, **kwargs):
+    def check_closed_(self, *args, **kwargs):
         if self.closed:
             raise InterfaceError("connection already closed")
         return func(self, *args, **kwargs)
-    return wrapper
+    return check_closed_
 
 
 def check_no_tuples(func):
@@ -25,11 +24,11 @@ def check_no_tuples(func):
 
     """
     @wraps(func)
-    def wrapper(self, *args, **kwargs):
+    def check_no_tuples_(self, *args, **kwargs):
         if self._no_tuples:
             raise ProgrammingError("no results to fetch")
         return func(self, *args, **kwargs)
-    return wrapper
+    return check_no_tuples_
 
 # Used for Cursor.description
 Column = namedtuple('Column', ['name', 'type_code', 'display_size',
@@ -49,6 +48,7 @@ class Cursor(object):
     """
 
     def __init__(self, connection, name, row_factory=None):
+
         self._connection = connection
 
         #: This read/write attribute specifies the number of rows to fetch at
@@ -73,6 +73,7 @@ class Cursor(object):
         self._description = None
         self._lastrowid = 0
         self._name = name
+        self._withhold = False
         self._no_tuples = True
         self._rowcount = -1
         self._rownumber = 0
@@ -190,8 +191,7 @@ class Cursor(object):
         conn = self._connection
 
         if isinstance(query, unicode):
-            encoding = encodings[self._connection.encoding]
-            query = query.encode(encoding)
+            query = query.encode(self._connection._py_enc)
 
         if parameters is not None:
             self._query = _combine_cmd_params(query, parameters, conn)
@@ -229,19 +229,7 @@ class Cursor(object):
             casts = []
             for i in xrange(self._nfields):
                 ftype = libpq.PQftype(self._pgres, i)
-                try:
-                    cast = self._typecasts[ftype]
-                except KeyError:
-                    try:
-                        cast = self._connection._typecasts[ftype]
-                    except KeyError:
-
-                        try:
-                            cast = typecasts.string_types[ftype]
-                        except KeyError:
-                            cast = typecasts.string_types[19]
-                casts.append(cast)
-
+                casts.append(self._get_cast(ftype))
                 description.append(Column(
                     name=libpq.PQfname(self._pgres, i),
                     type_code=ftype,
@@ -252,9 +240,11 @@ class Cursor(object):
                     null_ok=None,
                 ))
 
-
             self._description = tuple(description)
             self._casts = casts
+
+        elif pgstatus == libpq.PGRES_EMPTY_QUERY:
+            raise ProgrammingError("can't execute an empty query")
 
         else:
             conn._raise_operational_error(self._pgres)
@@ -386,12 +376,26 @@ class Cursor(object):
         """
         raise NotImplementedError()
 
+    def cast(self, oid, s):
+        """Convert a value from a PostgreSQL string to a Python object.
+
+        Use the most specific of the typecasters registered by register_type().
+
+        This is not part of the dbapi 2 standard, but a psycopg2 extension.
+
+        """
+        cast = self._get_cast(oid)
+        return cast.cast(s, self, None)
+
     def mogrify(self, query, vars=None):
         """Return the the querystring with the vars binded.
 
         This is not part of the dbapi 2 standard, but a psycopg2 extension.
 
         """
+        if isinstance(query, unicode):
+            query = query.encode(self._connection._py_enc)
+
         return _combine_cmd_params(query, vars, self._connection)
 
     @check_closed
@@ -510,6 +514,18 @@ class Cursor(object):
         """
         return self._statusmessage
 
+    @property
+    def withhold(self):
+        return self._withhold
+
+    @withhold.setter
+    def withhold(self, value):
+        if not self._name:
+            raise ProgrammingError(
+                "trying to set .withhold on unnamed cursor")
+
+        self._withhold = bool(value)
+
     def _clear_pgres(self):
         if self._pgres:
             libpq.PQclear(self._pgres)
@@ -540,6 +556,17 @@ class Cursor(object):
             return tuple(row)
         return row
 
+    def _get_cast(self, oid):
+        try:
+            return self._typecasts[oid]
+        except KeyError:
+            try:
+                return self._connection._typecasts[oid]
+            except KeyError:
+                try:
+                    return typecasts.string_types[oid]
+                except KeyError:
+                    return typecasts.string_types[705]
 
 
 def _combine_cmd_params(cmd, params, conn):

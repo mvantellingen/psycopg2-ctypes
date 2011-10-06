@@ -1,6 +1,7 @@
 from functools import wraps
 from collections import deque
 
+from psycopg2ct._impl import encodings as _enc
 from psycopg2ct._impl import exceptions
 from psycopg2ct._impl import libpq
 from psycopg2ct._impl.cursor import Cursor
@@ -21,22 +22,22 @@ ISOLATION_LEVEL_SERIALIZABLE = 4
 
 def check_closed(func):
     @wraps(func)
-    def wrapper(self, *args, **kwargs):
+    def check_closed_(self, *args, **kwargs):
         if self.closed:
             raise exceptions.InterfaceError('connection already closed')
         return func(self, *args, **kwargs)
-    return wrapper
+    return check_closed_
 
 
 def check_tpc(command):
     def decorator(func):
         @wraps(func)
-        def wrapper(self, *args, **kwargs):
+        def check_tpc_(self, *args, **kwargs):
             if self._tpc_xid:
                 raise exceptions.ProgrammingError(
                     '%s cannot be used during a two-phase transaction' % command)
             return func(self, *args, **kwargs)
-        return wrapper
+        return check_tpc_
     return decorator
 
 
@@ -59,7 +60,7 @@ class Connection(object):
 
         self.dsn = dsn
         self.status = CONN_STATUS_SETUP
-        self.encoding = None
+        self._encoding = None
 
         self._closed = True
         self._cancel = None
@@ -111,8 +112,8 @@ class Connection(object):
 
     @check_closed
     def set_isolation_level(self, level):
-        if level < 0 or level > 2:
-            raise ValueError('isolation level must be between 0 and 2')
+        if level < 0 or level > 4:
+            raise ValueError('isolation level must be between 0 and 4')
         if self._isolation_level == level:
             return
         if self._isolation_level != ISOLATION_LEVEL_AUTOCOMMIT:
@@ -145,8 +146,16 @@ class Connection(object):
     def get_transaction_status(self):
         return libpq.PQtransactionStatus(self._pgconn)
 
-    def cursor(self, name=None, cursor_factory=Cursor):
-        return cursor_factory(self, name, )
+    def cursor(self, name=None, cursor_factory=Cursor, withhold=False):
+        cur = cursor_factory(self, name)
+        if withhold:
+            if name:
+                cur.withhold = True
+            else:
+                raise exceptions.ProgrammingError(
+                    "withhold=True can be specified only for named cursors")
+
+        return cur
 
     @check_closed
     def cancel(self):
@@ -155,14 +164,21 @@ class Connection(object):
         if libpq.PQcancel(self._cancel, errbuf, len(errbuf)) == 0:
             self._raise_operational_error(errbuf)
 
+    @property
+    def encoding(self):
+        return self._encoding
+
     @check_closed
     def set_client_encoding(self, encoding):
-        encoding = ''.join([c for c in encoding if c != '-' and c != '_'])
+        encoding = _enc.normalize(encoding)
         if self.encoding == encoding:
             return
+
+        pyenc = _enc.encodings[encoding]
         self._rollback()
         self._execute_command('SET client_encoding = %s' % encoding)
-        self.encoding = encoding
+        self._encoding = encoding
+        self._py_enc = pyenc
 
     def get_exc_type_for_state(self, code):
         exc_type = None
@@ -241,7 +257,8 @@ class Connection(object):
 
         # Get encoding
         client_encoding = libpq.PQparameterStatus(self._pgconn, 'client_encoding')
-        self.encoding = client_encoding.upper()
+        self._encoding = _enc.normalize(client_encoding)
+        self._py_enc = _enc.encodings[self.encoding]
 
         self._cancel = libpq.PQgetCancel(self._pgconn)
         if self._cancel is None:

@@ -126,8 +126,8 @@ class Type(object):
 def register_type(type_obj, scope=None):
     typecasts = string_types
     if scope:
-        from psycopg2ct.connection import Connection
-        from psycopg2ct.cursor import Cursor
+        from psycopg2ct._impl.connection import Connection
+        from psycopg2ct._impl.cursor import Cursor
 
         if isinstance(scope, Connection):
             typecasts = scope._typecasts
@@ -158,6 +158,7 @@ ROWID = _default_type('ROWID', [26], typecasts.parse_integer)
 STRING = _default_type('STRING', [19, 18, 25, 1042, 1043], typecasts.parse_string)
 
 # Register the basic typecasters
+UNKNOWN = _default_type('UNKNOWN', [705], typecasts.parse_unknown)
 BOOLEAN = _default_type('BOOLEAN', [16], typecasts.parse_boolean)
 DATE = _default_type('DATE', [1082], typecasts.parse_date)
 DECIMAL = _default_type('DECIMAL', [1700], typecasts.parse_decimal)

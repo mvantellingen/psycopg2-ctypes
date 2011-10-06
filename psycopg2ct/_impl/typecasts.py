@@ -13,6 +13,13 @@ def typecast(caster, value, length, cursor):
     return caster.cast(value, length, cursor)
 
 
+def parse_unknown(value, length, cursor):
+    if value != '{}':
+        return value
+    else:
+        return []
+
+
 def parse_string(value, length, cursor):
     return value
 
@@ -109,9 +116,7 @@ class parse_array(object):
 
 
 def parse_unicode(value, length, cursor):
-    from psycopg2ct.extensions import encodings
-    encoding = encodings[cursor.connection.encoding]
-    return value.decode(encoding)
+    return value.decode(cursor._connection._py_enc)
 
 
 def _parse_date(value):
