@@ -25,7 +25,7 @@ def check_no_tuples(func):
     """
     @wraps(func)
     def check_no_tuples_(self, *args, **kwargs):
-        if self._no_tuples:
+        if self._no_tuples and self._name is None:
             raise ProgrammingError("no results to fetch")
         return func(self, *args, **kwargs)
     return check_no_tuples_
@@ -68,11 +68,12 @@ class Cursor(object):
 
         self.tzinfo_factory = tz.FixedOffsetTimezone
         self.row_factory = row_factory
+        self.itersize = 2000
 
         self._closed = False
         self._description = None
         self._lastrowid = 0
-        self._name = name
+        self._name = name.replace('"', '""') if name is not None else name
         self._withhold = False
         self._no_tuples = True
         self._rowcount = -1
@@ -149,6 +150,7 @@ class Cursor(object):
         self.execute(sql, parameters)
         return parameters
 
+    @check_closed
     def close(self):
         """Close the cursor now (rather than whenever __del__ is called).
 
@@ -157,6 +159,9 @@ class Cursor(object):
         with the cursor.
 
         """
+        if self._name is not None:
+            self._pq_execute('CLOSE "%s"' % self._name)
+
         self._closed = True
 
     @check_closed
@@ -201,11 +206,22 @@ class Cursor(object):
         conn._begin_transaction()
         self._clear_pgres()
 
-        self._pgres = libpq.PQexec(conn._pgconn, self._query)
+        if self._name:
+            self._query = 'DECLARE "%s" CURSOR %s HOLD FOR %s' % (
+                self._name,
+                self._withhold and "WITH" or "WITHOUT", # youuuuu
+                self._query)
 
+        self._pq_execute(self._query)
+
+    def _pq_execute(self, query):
+        self._pgres = libpq.PQexec(self._connection._pgconn, query)
         if not self._pgres:
-            conn._raise_operational_error(self._pgres)
+            self._connection._raise_operational_error(self._pgres)
 
+        self._pq_fetch()
+
+    def _pq_fetch(self):
         pgstatus = libpq.PQresultStatus(self._pgres)
         self._statusmessage = libpq.PQcmdStatus(self._pgres)
 
@@ -247,7 +263,7 @@ class Cursor(object):
             raise ProgrammingError("can't execute an empty query")
 
         else:
-            conn._raise_operational_error(self._pgres)
+            self._connection._raise_operational_error(self._pgres)
 
     @check_closed
     def executemany(self, query, paramlist):
@@ -291,6 +307,10 @@ class Cursor(object):
         .execute*() did not produce any result set or no call was issued yet.
 
         """
+        if self._name is not None:
+            self._pq_execute(
+                'FETCH FORWARD 1 FROM "%s"' % self._name)
+
         if self._rownumber >= self._rowcount:
             return None
 
@@ -325,6 +345,10 @@ class Cursor(object):
         if size is None:
             size = self.arraysize
 
+        if self._name is not None:
+            self._pq_execute(
+                'FETCH FORWARD %d FROM "%s"' % (size, self._name))
+
         if size > self._rowcount - self._rownumber or size < 0:
             size = self._rowcount - self._rownumber
 
@@ -350,6 +374,9 @@ class Cursor(object):
         .execute*() did not produce any result set or no call was issued yet.
 
         """
+        if self._name is not None:
+            self._pq_execute('FETCH FORWARD ALL FROM "%s"' % self._name)
+
         size = self._rowcount - self._rownumber
         if size <= 0:
             return []
@@ -470,13 +497,14 @@ class Cursor(object):
         This is an optional DB API extension.
 
         """
-        return self
-
-    def next(self):
-        row = self.fetchone()
-        if row is None:
-            raise StopIteration()
-        return row
+        while 1:
+            rows = self.fetchmany(self.itersize)
+            if not rows:
+                return
+            self._rownumber = 0
+            for row in rows:
+                self._rownumber += 1
+                yield row
 
     @property
     def lastrowid(self):
