@@ -185,3 +185,5 @@ STRINGARRAY = _default_type(
     'STRINGARRAY', [1002, 1003, 1009, 1014, 1015], typecasts.parse_array(STRING))
 BINARYARRAY = _default_type(
     'BINARYARRAY', [1001], typecasts.parse_array(BINARY))
+DATETIMEARRAY = _default_type(
+    'DATETIMEARRAY', [1115, 1185], typecasts.parse_array(DATETIME))
