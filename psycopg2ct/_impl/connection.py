@@ -41,16 +41,15 @@ def check_notrans(func):
         return func(self, *args, **kwargs)
     return check_notrans_
 
-def check_tpc(command):
-    def decorator(func):
-        @wraps(func)
-        def check_tpc_(self, *args, **kwargs):
-            if self._tpc_xid:
-                raise exceptions.ProgrammingError(
-                    '%s cannot be used during a two-phase transaction' % command)
-            return func(self, *args, **kwargs)
-        return check_tpc_
-    return decorator
+def check_tpc(func):
+    @wraps(func)
+    def check_tpc_(self, *args, **kwargs):
+        if self._tpc_xid:
+            raise exceptions.ProgrammingError(
+                '%s cannot be used during a two-phase transaction'
+                % func.__name__)
+        return func(self, *args, **kwargs)
+    return check_tpc_
 
 
 class Connection(object):
@@ -105,12 +104,12 @@ class Connection(object):
         return self._close()
 
     @check_closed
-    @check_tpc('rollback')
+    @check_tpc
     def rollback(self):
         self._rollback()
 
     @check_closed
-    @check_tpc('commit')
+    @check_tpc
     def commit(self):
         self._commit()
 
@@ -232,6 +231,7 @@ class Connection(object):
         return cur
 
     @check_closed
+    @check_tpc
     def cancel(self):
         errbuf = libpq.create_string_buffer(256)
 
@@ -288,6 +288,9 @@ class Connection(object):
 
     @check_closed
     def tpc_begin(self, xid):
+        if not isinstance(xid, Xid):
+            xid = Xid.from_string(xid)
+
         if self.status != consts.STATUS_READY:
             raise exceptions.ProgrammingError(
                 'tpc_begin must be called outside a transaction')
@@ -300,12 +303,12 @@ class Connection(object):
         self._tpc_xid = xid
 
     @check_closed
-    def tpc_commit(self):
-        self._finish_tpc('COMMIT PREPARED', self._commit)
+    def tpc_commit(self, xid=None):
+        self._finish_tpc('COMMIT PREPARED', self._commit, xid)
 
     @check_closed
-    def tpc_rollback(self):
-        self._finish_tpc('ROLLBACK PREPARED', self._rollback)
+    def tpc_rollback(self, xid=None):
+        self._finish_tpc('ROLLBACK PREPARED', self._rollback, xid)
 
     @check_closed
     def tpc_prepare(self):
@@ -313,7 +316,8 @@ class Connection(object):
             raise exceptions.ProgrammingError(
                 'prepare must be called inside a two-phase transaction')
 
-        self._execute_tpc_command('PREPARE TRANSACTION')
+        self._execute_tpc_command('PREPARE TRANSACTION', self._tpc_xid)
+        self.status = consts.STATUS_PREPARED
 
     @check_closed
     def tpc_recover(self):
@@ -348,39 +352,40 @@ class Connection(object):
         finally:
             libpq.PQclear(pgres)
 
-    def _execute_tpc_command(self, command):
-        from psycopg2ct import QuotedString
-
-        tid = self._tpc_xid.as_tid()
-        tid = QuotedString(tid)
+    def _execute_tpc_command(self, command, xid):
+        from psycopg2ct.extensions import QuotedString
+        tid = QuotedString(str(xid))
         tid.prepare(self)
-        tid = str(tid.quote())
-        cmd = '%s %s;' % (command, tid)
+        cmd = '%s %s' % (command, tid)
         self._execute_command(cmd)
 
-    def _finish_tpc(self, command, fallback):
+    def _finish_tpc(self, command, fallback, xid):
+        if xid:
+            # committing/aborting a received transaction.
+            if self.status != consts.STATUS_READY:
+                raise exceptions.ProgrammingError(
+                    "tpc_commit/tpc_rollback with a xid "
+                    "must be called outside a transaction")
 
-        if not self._tpc_xid:
-            raise exceptions.ProgrammingError(
-                'tpc_commit/tpc_rollback with no parameter must be '
-                'called in a two-phase transaction')
+            self._execute_tpc_command(command, xid)
 
-        if self.status == CONN_STATUS_BEGIN:
-            if fallback == 'commit':
-                self._commit()
-            elif fallback == 'abort':
-                self._rollback()
-            else:
-                raise exceptions.InternalError(
-                    'bad fallback passed to finish_tpc')
-        elif self.status == CONN_STATUS_PREPARED:
-            self._execute_tpc_command(command)
         else:
-            raise exceptions.InterfaceError(
-                'unexpected state in tpc_commit/tpc_rollback')
+            # committing/aborting our own transaction.
+            if not self._tpc_xid:
+                raise exceptions.ProgrammingError(
+                    "tpc_commit/tpc_rollback with no parameter "
+                    "must be called in a two-phase transaction")
 
-        self.status = consts.STATUS_READY
-        self._tpc_xid = None
+            if self.status == consts.STATUS_BEGIN:
+                fallback()
+            elif self.status == consts.STATUS_PREPARED:
+                self._execute_tpc_command(command, self._tpc_xid)
+            else:
+                raise exceptions.InterfaceError(
+                    'unexpected state in tpc_commit/tpc_rollback')
+
+            self.status = consts.STATUS_READY
+            self._tpc_xid = None
 
     def _close(self):
         self._closed = True
