@@ -79,7 +79,7 @@ class Connection(object):
         self._typecasts = {}
         self._tpc_xid = None
         self._notices = deque(maxlen=50)
-        self._isolation_level = None
+        self._autocommit = False
 
         # Connect
         self._pgconn = libpq.PQconnectdb(dsn)
@@ -122,38 +122,96 @@ class Connection(object):
         self._autocommit = False
         self._tpc_xid = None
 
-    @property
-    def isolation_level(self):
-        return self._isolation_level
+    def _get_guc(self, name):
+        """Return the value of a configuration parameter."""
+        pgres = libpq.PQexec(self._pgconn, 'SHOW %s' % name)
+        if not pgres or libpq.PQresultStatus(pgres) != libpq.PGRES_TUPLES_OK:
+            raise exceptions.OperationalError(
+                "can't fetch %s" % name)
 
+        rv = libpq.PQgetvalue(pgres, 0, 0)
+        libpq.PQclear(pgres)
+
+        return rv
+
+    def _set_guc(self, name, value):
+        """Set the value of a configuration parameter."""
+        if value.lower() != 'default':
+            # TODO: use the string adapter here
+            value = "'%s'" % value;
+
+        self._execute_command('SET %s TO %s' % (name, value))
+
+    def _set_guc_onoff(self, name, value):
+        """Set the value of a configuration parameter to a boolean.
+        
+        The string 'default' is accepted too.
+        """
+        if isinstance(value, basestring) and value.lower() == 'default':
+            value = 'default'
+        else:
+            value = value and 'on' or 'off'
+
+        self._set_guc(name, value)
+
+    @property
     @check_closed
+    def isolation_level(self):
+        if self._autocommit:
+            return consts.ISOLATION_LEVEL_AUTOCOMMIT
+        else:
+            name = self._get_guc('default_transaction_isolation')
+            return _isolevels[name.lower()]
+
     def set_isolation_level(self, level):
         if level < 0 or level > 4:
             raise ValueError('isolation level must be between 0 and 4')
-        if self._isolation_level == level:
-            return
-        if self._isolation_level != ISOLATION_LEVEL_AUTOCOMMIT:
-            self._rollback()
-        self._isolation_level = level
 
+        prev = self.isolation_level
+        if prev == level:
+            return
+
+        self._rollback()
+        if level == consts.ISOLATION_LEVEL_AUTOCOMMIT:
+            return self.set_session(autocommit=True)
+        else:
+            return self.set_session(isolation_level=level, autocommit=False)
+
+    @check_closed
+    @check_notrans
     def set_session(self, isolation_level=None, readonly=None, deferrable=None,
                     autocommit=None):
         if isolation_level is not None:
-            if isolation_level < 1 or isolation_level > 4:
-                raise ValueError('isolation level must be between 1 and 4')
-            if self._isolation_level == isolation_level:
-                return
-            if self._isolation_level != ISOLATION_LEVEL_AUTOCOMMIT:
-                self._rollback()
-            self._isolation_level = isolation_level
+            if isinstance(isolation_level, int):
+                if isolation_level < 1 or isolation_level > 4:
+                    raise ValueError('isolation level must be between 1 and 4')
+                isolation_level = _isolevels[isolation_level]
+            elif isinstance(isolation_level, basestring):
+                if not isolation_level \
+                or isolation_level.lower() not in _isolevels:
+                    raise ValueError("bad value for isolation level: '%s'" %
+                        isolation_level)
+            else:
+                raise TypeError("bad isolation level: '%r'" % isolation_level)
+
+            self._set_guc("default_transaction_isolation", isolation_level)
+
+        if readonly is not None:
+            self._set_guc_onoff('default_transaction_read_only', readonly)
+
+        if deferrable is not None:
+            self._set_guc_onoff('default_transaction_deferrable', deferrable)
+
+        if autocommit is not None:
+            self._autocommit = bool(autocommit)
 
     @property
     def autocommit(self):
-        raise NotImplementedError()
+        return self._autocommit
 
     @autocommit.setter
     def autocommit(self, value):
-        raise NotImplementedError()
+        self.set_session(autocommit=value)
 
     @check_closed
     def get_backend_pid(self):
@@ -192,7 +250,7 @@ class Connection(object):
 
         pyenc = _enc.encodings[encoding]
         self._rollback()
-        self._execute_command('SET client_encoding = %s' % encoding)
+        self._set_guc('client_encoding', encoding)
         self._encoding = encoding
         self._py_enc = pyenc
 
@@ -275,16 +333,9 @@ class Connection(object):
         self.status = consts.STATUS_READY
 
     def _begin_transaction(self):
-        if (self.status == CONN_STATUS_READY and
-            self._isolation_level != ISOLATION_LEVEL_AUTOCOMMIT):
-            sql = [
-                    None,
-                    'BEGIN; SET TRANSACTION ISOLATION LEVEL READ COMMITTED',
-                    'BEGIN; SET TRANSACTION ISOLATION LEVEL SERIALIZABLE',
-                ][self._isolation_level]
-
-            self._execute_command(sql)
-            self.status = CONN_STATUS_BEGIN
+        if self.status == consts.STATUS_READY and not self._autocommit:
+            self._execute_command('BEGIN')
+            self.status = consts.STATUS_BEGIN
 
     def _execute_command(self, command):
         pgres = libpq.PQexec(self._pgconn, command)
@@ -340,15 +391,13 @@ class Connection(object):
         self._notices = None
 
     def _commit(self):
-        if (self._isolation_level == ISOLATION_LEVEL_AUTOCOMMIT or
-            self.status != CONN_STATUS_BEGIN):
+        if self._autocommit or self.status != consts.STATUS_BEGIN:
             return
         self._execute_command('COMMIT')
         self.status = consts.STATUS_READY
 
     def _rollback(self):
-        if (self._isolation_level == ISOLATION_LEVEL_AUTOCOMMIT or
-            self.status != CONN_STATUS_BEGIN):
+        if self._autocommit or self.status != consts.STATUS_BEGIN:
             return
         self._execute_command('ROLLBACK')
         self.status = consts.STATUS_READY
