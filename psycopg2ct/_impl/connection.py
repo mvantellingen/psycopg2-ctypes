@@ -143,6 +143,9 @@ class Connection(object):
     def get_backend_pid(self):
         return libpq.PQbackendPID(self._pgconn)
 
+    def get_parameter_status(self, parameter):
+        return libpq.PQparameterStatus(self._pgconn, parameter)
+
     def get_transaction_status(self):
         return libpq.PQtransactionStatus(self._pgconn)
 
@@ -256,7 +259,7 @@ class Connection(object):
             self._isolation_level = ISOLATION_LEVEL_SERIALIZABLE
 
         # Get encoding
-        client_encoding = libpq.PQparameterStatus(self._pgconn, 'client_encoding')
+        client_encoding = self.get_parameter_status('client_encoding')
         self._encoding = _enc.normalize(client_encoding)
         self._py_enc = _enc.encodings[self.encoding]
 
