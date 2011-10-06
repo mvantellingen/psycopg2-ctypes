@@ -116,7 +116,11 @@ class Connection(object):
 
     @check_closed
     def reset(self):
-        self._setup()
+        self._execute_command(
+            "ABORT; RESET ALL; SET SESSION AUTHORIZATION DEFAULT;")
+        self.status = consts.STATUS_READY
+        self._autocommit = False
+        self._tpc_xid = None
 
     @property
     def isolation_level(self):
