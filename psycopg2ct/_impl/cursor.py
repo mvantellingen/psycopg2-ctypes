@@ -240,6 +240,9 @@ class Cursor(object):
             self._description = tuple(description)
             self._casts = casts
 
+        elif pgstatus == libpq.PGRES_EMPTY_QUERY:
+            raise ProgrammingError("can't execute an empty query")
+
         else:
             conn._raise_operational_error(self._pgres)
 
