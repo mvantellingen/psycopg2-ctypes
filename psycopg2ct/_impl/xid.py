@@ -1,4 +1,6 @@
 
+import re
+
 class Xid(object):
     def __init__(self, format_id, gtrid, bqual):
         if not 0 <= format_id <= 0x7FFFFFFF:
@@ -23,9 +25,35 @@ class Xid(object):
         self.bqual = bqual
 
     def as_tid(self):
-        gtrid = self.gtrid.encode('base64')[:-1]
-        bqual = self.bqual.encode('base64')[:-1]
-        return "%d_%s_%s" % (int(self.format_id), gtrid, bqual)
+        if self.format_id is not None:
+            gtrid = self.gtrid.encode('base64')[:-1]
+            bqual = self.bqual.encode('base64')[:-1]
+            return "%d_%s_%s" % (int(self.format_id), gtrid, bqual)
+        else:
+            return self.gtrid
+
+    def __str__(self):
+        return self.as_tid()
+
+    @classmethod
+    def from_string(self, s, _re=re.compile("^(\\d+)_([^_]*)_([^_]*)$")):
+        m = _re.match(s)
+        if m is not None:
+            try:
+                format_id = int(m.group(1))
+                gtrid = m.group(2).decode('base64')
+                bqual = m.group(3).decode('base64')
+                return Xid(format_id, gtrid, bqual)
+            except Exception:
+                pass
+
+        # parsing failed: unparsed xid
+        xid = Xid(0, '', '')
+        xid.gtrid = s
+        xid.format_id = None
+        xid.bqual = None
+
+        return xid
 
     def __getitem__(self, idx):
         if idx < 0:
