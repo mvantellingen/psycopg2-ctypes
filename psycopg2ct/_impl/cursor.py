@@ -2,7 +2,7 @@ from functools import wraps
 from collections import namedtuple
 
 from psycopg2ct import tz
-from psycopg2ct._impl import encodings
+from psycopg2ct._impl.encodings import encodings
 from psycopg2ct._impl import libpq
 from psycopg2ct._impl import typecasts
 from psycopg2ct._impl.adapters import _getquoted
