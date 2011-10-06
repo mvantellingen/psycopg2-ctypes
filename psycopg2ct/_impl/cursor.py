@@ -245,14 +245,33 @@ class Cursor(object):
             casts = []
             for i in xrange(self._nfields):
                 ftype = libpq.PQftype(self._pgres, i)
+                fsize = libpq.PQfsize(self._pgres, i)
+                fmod = libpq.PQfmod(self._pgres, i)
+                if fmod > 0:
+                    fmod -= 4   # TODO: sizeof(int)
+
+                if fsize == -1:
+                    if ftype == 1700:   # NUMERIC
+                        isize = fmod >> 16
+                    else:
+                        isize = fmod
+                else:
+                    isize = fsize
+
+                if ftype == 1700:
+                    prec = (fmod >> 16) & 0xFFFF
+                    scale = fmod & 0xFFFF
+                else:
+                    prec = scale = None
+
                 casts.append(self._get_cast(ftype))
                 description.append(Column(
                     name=libpq.PQfname(self._pgres, i),
                     type_code=ftype,
                     display_size=None,
-                    internal_size=None,
-                    precision=None,
-                    scale=None,
+                    internal_size=isize,
+                    precision=prec,
+                    scale=scale,
                     null_ok=None,
                 ))
 

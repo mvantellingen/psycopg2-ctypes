@@ -146,6 +146,14 @@ PQftype = libpq.PQftype
 PQftype.argtypes = [PGresult_p, c_int]
 PQftype.restype = c_uint
 
+PQfsize = libpq.PQfsize
+PQfsize.argtypes = [PGresult_p, c_int]
+PQftype.restype = c_int
+
+PQfmod = libpq.PQfmod
+PQfmod.argtypes = [PGresult_p, c_int]
+PQfmod.restype = c_int
+
 PQgetisnull = libpq.PQgetisnull
 PQgetisnull.argtypes = [PGresult_p, c_int, c_int]
 PQgetisnull.restype = c_int
