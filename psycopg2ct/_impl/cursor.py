@@ -219,11 +219,11 @@ class Cursor(object):
 
     def _pq_execute(self, query, async=False):
         pgconn = self._connection._pgconn
-
         if not async:
             self._pgres = libpq.PQexec(pgconn, query)
             if not self._pgres:
                 self._connection._raise_operational_error(self._pgres)
+            self._pq_fetch()
 
         else:
             ret = libpq.PQsendQuery(pgconn, query)
@@ -238,9 +238,6 @@ class Cursor(object):
             else:
                 raise ValueError()  # XXX
 
-        if not async:
-            self._pq_fetch()
-        else:
             self._connection._async_status = async_status
             self._connection._async_cursor = weakref.ref(self)
 
