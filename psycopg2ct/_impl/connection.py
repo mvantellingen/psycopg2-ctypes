@@ -224,6 +224,12 @@ class Connection(object):
 
     def cursor(self, name=None, cursor_factory=Cursor, withhold=False):
         cur = cursor_factory(self, name)
+
+        if not isinstance(cur, Cursor):
+            raise TypeError(
+                "cursor factory must be subclass of %s" %
+                '.'.join([Cursor.__module__, Cursor.__name__]))
+
         if withhold:
             if name:
                 cur.withhold = True
