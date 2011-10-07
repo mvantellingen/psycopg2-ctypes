@@ -237,6 +237,10 @@ class Connection(object):
                 raise exceptions.ProgrammingError(
                     "withhold=True can be specified only for named cursors")
 
+        if name and self.async:
+            raise exceptions.ProgrammingError(
+                "asynchronous connections cannot produce named cursors")
+
         return cur
 
     @check_closed
