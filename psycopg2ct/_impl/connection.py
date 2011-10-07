@@ -5,6 +5,7 @@ from psycopg2ct._impl import consts
 from psycopg2ct._impl import encodings as _enc
 from psycopg2ct._impl import exceptions
 from psycopg2ct._impl import libpq
+from psycopg2ct._impl import util
 from psycopg2ct._impl.cursor import Cursor
 from psycopg2ct._impl.xid import Xid
 
@@ -52,6 +53,15 @@ def check_tpc(func):
     return check_tpc_
 
 
+def check_async(func):
+    @wraps(func)
+    def check_async_(self, *args, **kwargs):
+        if self._async:
+            raise exceptions.ProgrammingError(
+                '%s cannot be used in asynchronous mode' % func.__name__)
+        return func(self, *args, **kwargs)
+    return check_async_
+
 class Connection(object):
 
     # Various exceptions which should be accessible via the Connection
@@ -66,35 +76,62 @@ class Connection(object):
     ProgrammingError = exceptions.ProgrammingError
     Warning = exceptions.Warning
 
-
-    def __init__(self, dsn):
+    def __init__(self, dsn, async=False):
 
         self.dsn = dsn
         self.status = consts.STATUS_SETUP
         self._encoding = None
 
-        self._closed = True
+        self._closed = False
         self._cancel = None
         self._typecasts = {}
         self._tpc_xid = None
         self._notices = deque(maxlen=50)
         self._autocommit = False
+        self._async = async
+        self._pgconn = None
+        self._async_status = None
+        self._async_cursor = None
 
-        # Connect
-        self._pgconn = libpq.PQconnectdb(dsn)
+        if not self._async:
+            self._connect_sync()
+        else:
+            self._connect_async()
+
+    def _connect_sync(self):
+        self._pgconn = libpq.PQconnectdb(self.dsn)
         if not self._pgconn:
-            raise exceptions.OperationalError('pgconnectdb() failed')
-        elif libpq.PQstatus(self._pgconn) != libpq.CONNECTION_OK:
-            error_msg = libpq.PQerrorMessage(self._pgconn)
-            raise exceptions.OperationalError(error_msg)
+            raise exceptions.OperationalError('PQconnectdb() failed')
+        elif libpq.PQstatus(self._pgconn) == libpq.CONNECTION_BAD:
+            raise util.create_operational_error(self._pgconn)
 
         # Register notice processor
         self._notice_callback = libpq.PQnoticeProcessor(
             lambda arg, message: self._notices.append(message))
         libpq.PQsetNoticeProcessor(self._pgconn, self._notice_callback, None)
 
-        # Setup the connection
+        self.status = consts.STATUS_READY
         self._setup()
+
+    def _connect_async(self):
+        """Create an async connection.
+
+        The connection will be completed banging on poll():
+        First with self._conn_poll_connecting() that will finish connection,
+        then with self._poll_setup_async() that will do the same job
+        of self._setup().
+
+        """
+        self._pgconn = libpq.PQconnectStart(self.dsn)
+        if not self._pgconn:
+            raise exceptions.OperationalError('PQconnectStart() failed')
+        elif libpq.PQstatus(self._pgconn) == libpq.CONNECTION_BAD:
+            raise util.create_operational_error(self._pgconn)
+
+        # Register notice processor
+        self._notice_callback = libpq.PQnoticeProcessor(
+            lambda arg, message: self._notices.append(message))
+        libpq.PQsetNoticeProcessor(self._pgconn, self._notice_callback, None)
 
     def __del__(self):
         self._close()
@@ -104,16 +141,19 @@ class Connection(object):
         return self._close()
 
     @check_closed
+    @check_async
     @check_tpc
     def rollback(self):
         self._rollback()
 
     @check_closed
+    @check_async
     @check_tpc
     def commit(self):
         self._commit()
 
     @check_closed
+    @check_async
     def reset(self):
         self._execute_command(
             "ABORT; RESET ALL; SET SESSION AUTHORIZATION DEFAULT;")
@@ -143,7 +183,7 @@ class Connection(object):
 
     def _set_guc_onoff(self, name, value):
         """Set the value of a configuration parameter to a boolean.
-        
+
         The string 'default' is accepted too.
         """
         if isinstance(value, basestring) and value.lower() == 'default':
@@ -162,6 +202,7 @@ class Connection(object):
             name = self._get_guc('default_transaction_isolation')
             return _isolevels[name.lower()]
 
+    @check_async
     def set_isolation_level(self, level):
         if level < 0 or level > 4:
             raise ValueError('isolation level must be between 0 and 4')
@@ -212,6 +253,10 @@ class Connection(object):
     def autocommit(self, value):
         self.set_session(autocommit=value)
 
+    @property
+    def async(self):
+        return self._async
+
     @check_closed
     def get_backend_pid(self):
         return libpq.PQbackendPID(self._pgconn)
@@ -237,7 +282,7 @@ class Connection(object):
                 raise exceptions.ProgrammingError(
                     "withhold=True can be specified only for named cursors")
 
-        if name and self.async:
+        if name and self._async:
             raise exceptions.ProgrammingError(
                 "asynchronous connections cannot produce named cursors")
 
@@ -251,11 +296,24 @@ class Connection(object):
         if libpq.PQcancel(self._cancel, errbuf, len(errbuf)) == 0:
             self._raise_operational_error(errbuf)
 
+    def isexecuting(self):
+        if not self._async:
+            return False
+
+        if self.status != consts.STATUS_READY:
+            return True
+
+        if self._async_cursor is not None:
+            return True
+
+        return False
+
     @property
     def encoding(self):
         return self._encoding
 
     @check_closed
+    @check_async
     def set_client_encoding(self, encoding):
         encoding = _enc.normalize(encoding)
         if self.encoding == encoding:
@@ -291,6 +349,9 @@ class Connection(object):
     def server_version(self):
         return libpq.PQserverVersion(self._pgconn)
 
+    def fileno(self):
+        return libpq.PQsocket(self._pgconn)
+
     @property
     def closed(self):
         return self._closed
@@ -300,6 +361,7 @@ class Connection(object):
         return Xid(format_id, gtrid, bqual)
 
     @check_closed
+    @check_async
     def tpc_begin(self, xid):
         if not isinstance(xid, Xid):
             xid = Xid.from_string(xid)
@@ -316,14 +378,17 @@ class Connection(object):
         self._tpc_xid = xid
 
     @check_closed
+    @check_async
     def tpc_commit(self, xid=None):
         self._finish_tpc('COMMIT PREPARED', self._commit, xid)
 
     @check_closed
+    @check_async
     def tpc_rollback(self, xid=None):
         self._finish_tpc('ROLLBACK PREPARED', self._rollback, xid)
 
     @check_closed
+    @check_async
     def tpc_prepare(self):
         if not self._tpc_xid:
             raise exceptions.ProgrammingError(
@@ -333,14 +398,162 @@ class Connection(object):
         self.status = consts.STATUS_PREPARED
 
     @check_closed
+    @check_async
     def tpc_recover(self):
         return Xid.tpc_recover(self)
 
+    def poll(self):
+        if self.status == consts.STATUS_SETUP:
+            self.status = consts.STATUS_CONNECTING
+            return consts.POLL_WRITE
+
+        if self.status == consts.STATUS_CONNECTING:
+            res = self._poll_connecting()
+            if res == consts.POLL_OK and self._async:
+                return self._poll_setup_async()
+            return res
+
+        if self.status in (consts.STATUS_READY, consts.STATUS_BEGIN,
+                           consts.STATUS_PREPARED):
+            res = self._poll_query()
+
+            if res == consts.POLL_OK and self._async and self._async_cursor:
+
+                # Get the cursor object from the weakref
+                curs = self._async_cursor()
+                if curs is None:
+                    util.pq_clear_async(self._pgconn)
+                    raise exceptions.InterfaceError(
+                        "the asynchronous cursor has disappeared")
+
+                libpq.PQclear(curs._pgres)
+
+                curs._pgres = util.pq_get_last_result(self._pgconn)
+                curs._pq_fetch()
+                self._async_cursor = None
+            return res
+
+        return consts.POLL_ERROR
+
+    def _poll_connecting(self):
+        """poll during a connection attempt until the connection has
+        established.
+
+        """
+        status_map = {
+            libpq.PGRES_POLLING_OK: consts.POLL_OK,
+            libpq.PGRES_POLLING_READING: consts.POLL_READ,
+            libpq.PGRES_POLLING_WRITING: consts.POLL_WRITE,
+            libpq.PGRES_POLLING_FAILED: consts.POLL_ERROR,
+            libpq.PGRES_POLLING_ACTIVE: consts.POLL_ERROR
+        }
+        res = status_map.get(libpq.PQconnectPoll(self._pgconn), None)
+
+        if res is None:
+            return consts.POLL_ERROR
+        elif res == consts.POLL_ERROR:
+            raise exceptions.OperationalError("asynchronous connection failed")
+        return res
+
+    def _poll_query(self):
+        """Poll the connection for the send query/retrieve result phase
+
+        Advance the async_status (usually going WRITE -> READ -> DONE) but
+        don't mess with the connection status.
+
+        """
+        if self._async_status == consts.ASYNC_WRITE:
+            ret = self._poll_advance_write(libpq.PQflush(self._pgconn))
+
+        elif self._async_status == consts.ASYNC_READ:
+            if self._async:
+                ret= self._poll_advance_read(util.pq_is_busy(self))
+            else:
+                raise NotImplemented()  # green threads
+
+        elif self._async_status == consts.ASYNC_DONE:
+            ret = self._poll_advance_read(util.pq_is_busy(self))
+
+        else:
+            ret = consts.POLL_ERROR
+
+        return ret
+
+    def _poll_advance_write(self, flush):
+        """Advance to the next state after an attempt of flushing output"""
+        if flush == 0:
+            self._async_status = consts.ASYNC_READ
+            return consts.POLL_READ
+
+        if flush == 1:
+            return consts.POLL_WRITE
+
+        if flush == -1:
+            raise util.create_operational_error(self._pgconn)
+
+        return consts.POLL_ERROR
+
+    def _poll_advance_read(self, busy):
+        """Advance to the next state after a call to a pq_is_busy* function"""
+        if busy == 0:
+            self._async_status = consts.ASYNC_DONE
+            return consts.POLL_OK
+
+        if busy == 1:
+            return consts.POLL_READ
+
+        return consts.POLL_ERROR
+
+    def _poll_setup_async(self):
+        """Advance to the next state during an async connection setup
+
+        If the connection is green, this is performed by the regular sync
+        code so the queries are sent by conn_setup() while in
+        CONN_STATUS_READY state.
+
+        """
+        if self.status == consts.STATUS_CONNECTING:
+            util.pq_set_non_blocking(self._pgconn, 1, True)
+
+            self._get_encoding()
+            self._cancel = libpq.PQgetCancel(self._pgconn)
+            if self._cancel is None:
+                raise exceptions.OperationalError("can't get cancellation key")
+
+            self._autocommit = True
+
+            # If the current datestyle is not compatible (not ISO) then
+            # force it to ISO
+            if not util.validate_datestyle(self._pgconn):
+                self.status = consts.STATUS_DATESTYLE
+
+                if libpq.PQsendQuery(self._pgconn, "SET DATESTYLE TO 'ISO'"):
+                    self._async_status = consts.ASYNC_WRITE
+                    return consts.POLL_WRITE
+                else:
+                    raise util.create_operational_error(self._pgconn)
+
+            self.status = consts.STATUS_READY
+            return consts.POLL_OK
+
+        if self.status == consts.STATUS_DATESTYLE:
+            res = self._poll_query()
+            if res != consts.POLL_OK:
+                return res
+
+            pgres = util.pq_get_last_result(self._pgconn)
+            if not pgres or \
+                libpq.PQresultStatus(pgres) != libpq.PGRES_COMMAND_OK:
+                raise exceptions.OperationalError("can't set datetyle to ISO")
+            libpq.PQclear(pgres)
+
+            self.status = consts.STATUS_READY
+            return consts.POLL_OK
+
+        return consts.POLL_ERROR
+
     def _setup(self):
-        # Get encoding
-        client_encoding = self.get_parameter_status('client_encoding')
-        self._encoding = _enc.normalize(client_encoding)
-        self._py_enc = _enc.encodings[self.encoding]
+        self._get_encoding()
 
         self._cancel = libpq.PQgetCancel(self._pgconn)
         if self._cancel is None:
@@ -420,6 +633,12 @@ class Connection(object):
         self._execute_command('ROLLBACK')
         self.status = consts.STATUS_READY
 
+    def _get_encoding(self):
+        """Retrieving encoding"""
+        client_encoding = self.get_parameter_status('client_encoding')
+        self._encoding = _enc.normalize(client_encoding)
+        self._py_enc = _enc.encodings[self._encoding]
+
     def _raise_operational_error(self, pgres):
         code = None
         error = None
@@ -439,8 +658,6 @@ class Connection(object):
 
 def connect(dsn=None, database=None, host=None, port=None, user=None,
             password=None, async=False, connection_factory=Connection):
-    if async:
-        raise NotImplementedError()
 
     if dsn is None:
         args = []
@@ -460,5 +677,12 @@ def connect(dsn=None, database=None, host=None, port=None, user=None,
         if password is not None:
             args.append('password=%s' % password)
         dsn = ' '.join(args)
+
+    # Mimic the construction method as used by psycopg2, which notes:
+    # Here we are breaking the connection.__init__ interface defined
+    # by psycopg2. So, if not requiring an async conn, avoid passing
+    # the async parameter.
+    if async:
+        return connection_factory(dsn, async=True)
     return connection_factory(dsn)
 

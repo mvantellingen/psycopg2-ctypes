@@ -54,6 +54,15 @@ DIAG_SOURCE_LINE = ord('L')
 PG_DIAG_SOURCE_FUNCTION = ord('R')
 
 
+PGRES_POLLING_FAILED = 0
+PGRES_POLLING_READING = 1
+PGRES_POLLING_WRITING = 2
+PGRES_POLLING_OK = 3
+PGRES_POLLING_ACTIVE = 4
+
+PostgresPollingStatusType = c_int
+
+
 class PGnotify(Structure):
     pass
 
@@ -63,6 +72,14 @@ class PGnotify(Structure):
 PQconnectdb = libpq.PQconnectdb
 PQconnectdb.argtypes = [c_char_p]
 PQconnectdb.restype = PGconn_p
+
+PQconnectStart = libpq.PQconnectStart
+PQconnectStart.argtypes = [c_char_p]
+PQconnectStart.restype = PGconn_p
+
+PQconnectPoll = libpq.PQconnectPoll
+PQconnectPoll.argtypes = [PGconn_p]
+PQconnectPoll.restype = PostgresPollingStatusType
 
 PQfinish = libpq.PQfinish
 PQfinish.argtypes = [PGconn_p]
@@ -101,6 +118,10 @@ PQserverVersion.restype = c_int
 PQerrorMessage = libpq.PQerrorMessage
 PQerrorMessage.argtypes = [PGconn_p]
 PQerrorMessage.restype = c_char_p
+
+PQsocket = libpq.PQsocket
+PQsocket.argtypes = [PGconn_p]
+PQsocket.restype = c_int
 
 PQbackendPID = libpq.PQbackendPID
 PQbackendPID.argtypes = [PGconn_p]
@@ -206,6 +227,32 @@ PQescapeBytea.restype = POINTER(c_char)
 PQunescapeBytea = libpq.PQunescapeBytea
 PQunescapeBytea.argtypes = [POINTER(c_char), POINTER(c_uint)]
 PQunescapeBytea.restype = POINTER(c_char)
+
+# Asynchronous Command Processing
+
+PQsendQuery = libpq.PQsendQuery
+PQsendQuery.argtypes = [PGconn_p, c_char_p]
+PQsendQuery.restype = c_int
+
+PQgetResult = libpq.PQgetResult
+PQgetResult.argtypes = [PGconn_p]
+PQgetResult.restype = PGresult_p
+
+PQconsumeInput = libpq.PQconsumeInput
+PQconsumeInput.argtypes = [PGconn_p]
+PQconsumeInput.restype = c_int
+
+PQisBusy = libpq.PQisBusy
+PQisBusy.argtypes = [PGconn_p]
+PQisBusy.restype = c_int
+
+PQsetnonblocking = libpq.PQsetnonblocking
+PQsetnonblocking.argtypes = [PGconn_p, c_int]
+PQsetnonblocking.restype = c_int
+
+PQflush = libpq.PQflush
+PQflush.argtypes = [PGconn_p]
+PQflush.restype = c_int
 
 # Cancelling queries in progress
 

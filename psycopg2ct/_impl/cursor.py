@@ -1,9 +1,12 @@
 from functools import wraps
 from collections import namedtuple
+import weakref
 
 from psycopg2ct import tz
+from psycopg2ct._impl import consts
 from psycopg2ct._impl import libpq
 from psycopg2ct._impl import typecasts
+from psycopg2ct._impl import util
 from psycopg2ct._impl.adapters import _getquoted
 from psycopg2ct._impl.exceptions import InterfaceError, ProgrammingError
 
@@ -212,14 +215,34 @@ class Cursor(object):
                 self._withhold and "WITH" or "WITHOUT", # youuuuu
                 self._query)
 
-        self._pq_execute(self._query)
+        self._pq_execute(self._query, conn._async)
 
-    def _pq_execute(self, query):
-        self._pgres = libpq.PQexec(self._connection._pgconn, query)
-        if not self._pgres:
-            self._connection._raise_operational_error(self._pgres)
+    def _pq_execute(self, query, async=False):
+        pgconn = self._connection._pgconn
 
-        self._pq_fetch()
+        if not async:
+            self._pgres = libpq.PQexec(pgconn, query)
+            if not self._pgres:
+                self._connection._raise_operational_error(self._pgres)
+
+        else:
+            ret = libpq.PQsendQuery(pgconn, query)
+            if not ret:
+                raise util.create_operational_error(pgconn)
+
+            ret = libpq.PQflush(pgconn)
+            if ret == 0:
+                async_status = consts.ASYNC_READ
+            elif ret == 1:
+                async_status = consts.ASYNC_WRITE
+            else:
+                raise ValueError()  # XXX
+
+        if not async:
+            self._pq_fetch()
+        else:
+            self._connection._async_status = async_status
+            self._connection._async_cursor = weakref.ref(self)
 
     def _pq_fetch(self):
         pgstatus = libpq.PQresultStatus(self._pgres)
