@@ -7,6 +7,7 @@ from psycopg2ct._impl import exceptions
 from psycopg2ct._impl import libpq
 from psycopg2ct._impl import util
 from psycopg2ct._impl.cursor import Cursor
+from psycopg2ct._impl.lobject import LargeObject
 from psycopg2ct._impl.xid import Xid
 
 
@@ -406,6 +407,11 @@ class Connection(object):
     @check_async
     def tpc_recover(self):
         return Xid.tpc_recover(self)
+
+    def lobject(self, oid=0, mode='', new_oid=0, new_file=None,
+                lobject_factory=LargeObject):
+        obj = lobject_factory(self, oid, mode, new_oid, new_file)
+        return obj
 
     def poll(self):
         if self.status == consts.STATUS_SETUP:

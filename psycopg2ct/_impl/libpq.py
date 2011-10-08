@@ -299,3 +299,50 @@ PQnoticeProcessor = CFUNCTYPE(None, c_void_p, c_char_p)
 PQsetNoticeProcessor = libpq.PQsetNoticeProcessor
 PQsetNoticeProcessor.argtypes = [PGconn_p, PQnoticeProcessor, c_void_p]
 PQsetNoticeProcessor.restype = PQnoticeProcessor
+
+
+# Large object
+Oid = c_int
+lo_open = libpq.lo_open
+lo_open.argtypes = [PGconn_p, Oid, c_int]
+lo_open.restype = c_int
+
+lo_create = libpq.lo_create
+lo_create.argtypes = [PGconn_p, Oid]
+lo_create.restype = Oid
+
+lo_import = libpq.lo_import
+lo_import.argtypes = [PGconn_p, c_char_p]
+lo_import.restype = Oid
+
+lo_read = libpq.lo_read
+lo_read.argtypes = [PGconn_p, c_int, c_char_p, c_int]
+lo_read.restype = c_int
+
+lo_write = libpq.lo_write
+lo_write.argtypes = [PGconn_p, c_int, c_char_p, c_int]
+lo_write.restype = c_int
+
+lo_tell = libpq.lo_tell
+lo_tell.argtypes = [PGconn_p, c_int]
+lo_tell.restype = c_int
+
+lo_lseek = libpq.lo_lseek
+lo_lseek.argtypes = [PGconn_p, c_int, c_int, c_int]
+lo_lseek.restype = c_int
+
+lo_close = libpq.lo_close
+lo_close.argtypes = [PGconn_p, c_int]
+lo_close.restype = c_int
+
+lo_unlink = libpq.lo_unlink
+lo_unlink.argtypes = [PGconn_p, Oid]
+lo_unlink.restype = c_int
+
+lo_export = libpq.lo_export
+lo_export.argtypes = [PGconn_p, Oid, c_char_p]
+lo_export.restype = c_int
+
+lo_truncate = libpq.lo_truncate
+lo_truncate.argtypes = [PGconn_p, c_int, c_int]
+lo_truncate.restype = c_int
