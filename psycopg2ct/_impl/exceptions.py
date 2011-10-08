@@ -41,3 +41,7 @@ class NotSupportedError(DatabaseError):
 
 class QueryCanceledError(OperationalError):
     pass
+
+
+class TransactionRollbackError(OperationalError):
+    pass

@@ -12,6 +12,7 @@ from psycopg2ct._impl.cursor import Cursor as cursor
 from psycopg2ct._impl.encodings import encodings
 from psycopg2ct._impl.exceptions import ProgrammingError
 from psycopg2ct._impl.exceptions import QueryCanceledError
+from psycopg2ct._impl.exceptions import TransactionRollbackError
 from psycopg2ct._impl.xid import Xid
 
 
