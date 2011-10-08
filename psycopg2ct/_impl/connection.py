@@ -300,7 +300,7 @@ class Connection(object):
         errbuf = libpq.create_string_buffer(256)
 
         if libpq.PQcancel(self._cancel, errbuf, len(errbuf)) == 0:
-            self._raise_operational_error(errbuf)
+            raise self._create_exception(msg=errbuf)
 
     def isexecuting(self):
         if not self._async:
@@ -331,15 +331,6 @@ class Connection(object):
         self._encoding = encoding
         self._py_enc = pyenc
 
-    def get_exc_type_for_state(self, code):
-        exc_type = None
-        if code[0] == '2':
-            if code[1] == '3':
-                exc_type = exceptions.IntegrityError
-        elif code[0] == '4':
-            if code[1] == '2':
-                exc_type = exceptions.ProgrammingError
-        return exc_type
 
     @property
     def notices(self):
@@ -581,11 +572,11 @@ class Connection(object):
     def _execute_command(self, command):
         pgres = libpq.PQexec(self._pgconn, command)
         if not pgres:
-            self._raise_operational_error(None)
+            raise self._create_exception()
         try:
             pgstatus = libpq.PQresultStatus(pgres)
             if pgstatus != libpq.PGRES_COMMAND_OK:
-                self._raise_operational_error(pgres)
+                raise self._create_exception(pgres=pgres)
         finally:
             libpq.PQclear(pgres)
 
@@ -657,21 +648,37 @@ class Connection(object):
         self._encoding = _enc.normalize(client_encoding)
         self._py_enc = _enc.encodings[self._encoding]
 
-    def _raise_operational_error(self, pgres):
-        code = None
-        error = None
-        if pgres:
-            error = libpq.PQresultErrorMessage(pgres)
-            if error is not None:
-                code = libpq.PQresultErrorField(pgres, libpq.PG_DIAG_SQLSTATE)
-        if error is None:
-            error = libpq.PQerrorMessage(self._pgconn)
+    def _get_exc_type_for_state(self, code):
         exc_type = None
-        if code is not None:
-            exc_type = self.get_exc_type_for_state(code)
-        if exc_type is None:
+        if code[0] == '2':
+            if code[1] == '3':
+                exc_type = exceptions.IntegrityError
+        elif code[0] == '4':
+            if code[1] == '2':
+                exc_type = exceptions.ProgrammingError
+        return exc_type
+
+    def _create_exception(self, pgres=None, msg=None):
+        """Return the exception to be raise'd"""
+        if not pgres:
+            if not msg:
+                msg = libpq.PQerrorMessage(self._pgconn)
+            return exceptions.OperationalError(msg)
+
+        if msg is None:
+            msg = libpq.PQresultErrorMessage(pgres)
+
+        exc_type = None
+        if msg is not None:
+            code = libpq.PQresultErrorField(pgres, libpq.PG_DIAG_SQLSTATE)
+            if code is not None:
+                exc_type = self._get_exc_type_for_state(code)
+        else:
+            msg = libpq.PQerrorMessage(self._pgconn)
+
+        if not exc_type:
             exc_type = exceptions.OperationalError
-        raise exc_type(error)
+        return exc_type(msg)
 
 
 def connect(dsn=None, database=None, host=None, port=None, user=None,

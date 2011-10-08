@@ -84,14 +84,14 @@ class LargeObject(object):
         length = libpq.lo_write(
             self._conn._pgconn, self._fd, value, len(value))
         if length < 0:
-            raise util.create_operational_error(self._conn._pgconn)
+            raise self._conn._create_exception()
         return length
 
     def export(self, file_name):
         """Export large object to given file."""
         self._conn._begin_transaction()
         if libpq.lo_export(self._conn._pgconn, self._oid, file_name) < 0:
-            raise util.create_operational_error(self._conn._pgconn)
+            raise self._conn._create_exception()
 
     @check_closed
     @check_unmarked
@@ -110,7 +110,7 @@ class LargeObject(object):
     def truncate(self, length=0):
         ret = libpq.lo_truncate(self._conn._pgconn, self._fd, length)
         if ret < 0:
-            raise util.create_operational_error(self._conn._pgconn)
+            raise self._conn._create_exception()
         return ret
 
     def close(self):
@@ -123,7 +123,7 @@ class LargeObject(object):
         ret = libpq.lo_close(self._conn._pgconn, self._fd)
         self._fd = -1
         if ret < 0:
-            raise util.create_operational_error(self._conn._pgconn)
+            raise self._conn._create_exception()
         else:
             return True
 
@@ -159,7 +159,7 @@ class LargeObject(object):
         if pgmode:
             self._fd = libpq.lo_open(conn._pgconn, self._oid, pgmode)
             if self._fd < 0:
-                raise util.create_operational_error(self._conn._pgconn)
+                raise self._conn._create_exception()
 
         self._smode = self._unparse_mode(self._mode)
 

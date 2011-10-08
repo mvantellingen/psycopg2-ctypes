@@ -45,11 +45,6 @@ def escape_string(conn, value):
     return obj.getquoted()
 
 
-def create_operational_error(pgconn):
-    error_msg = libpq.PQerrorMessage(pgconn)
-    return exceptions.OperationalError(error_msg)
-
-
 def validate_datestyle(pgconn):
     """Validates if the datestyle is an ISO format"""
     datestyle = libpq.PQparameterStatus(pgconn, 'DateStyle')

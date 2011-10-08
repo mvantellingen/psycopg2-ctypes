@@ -237,13 +237,13 @@ class Cursor(object):
         if not async:
             self._pgres = libpq.PQexec(pgconn, query)
             if not self._pgres:
-                self._connection._raise_operational_error(self._pgres)
+                raise self._connection._create_exception(pgres=self._pgres)
             self._pq_fetch()
 
         else:
             ret = libpq.PQsendQuery(pgconn, query)
             if not ret:
-                raise util.create_operational_error(pgconn)
+                raise self._connection._create_exception()
 
             ret = libpq.PQflush(pgconn)
             if ret == 0:
@@ -323,7 +323,7 @@ class Cursor(object):
             raise ProgrammingError("can't execute an empty query")
 
         else:
-            self._connection._raise_operational_error(self._pgres)
+            raise self._connection._create_exception(pgres=self._pgres)
 
     def _pq_fetch_copy_in(self):
         pgconn = self._connection._pgconn
@@ -368,7 +368,7 @@ class Cursor(object):
 
                 self._copyfile.write(value)
             elif length == -2:
-                raise util.create_operational_error(pgconn)
+                raise self._connection._create_exception()
             else:
                 break
 
