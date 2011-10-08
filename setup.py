@@ -255,7 +255,7 @@ setup(
 
     ],
     platforms=['any'],
-    test_suite='psycopg2ct.tests',
+    test_suite='psycopg2ct.tests.suite',
     description=README[0].strip(),
     long_description=''.join(README),
     packages=['psycopg2ct', 'psycopg2ct.tests'],
