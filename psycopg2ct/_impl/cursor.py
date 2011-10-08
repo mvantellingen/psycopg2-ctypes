@@ -4,6 +4,7 @@ import weakref
 
 from psycopg2ct import tz
 from psycopg2ct._impl import consts
+from psycopg2ct._impl import exceptions
 from psycopg2ct._impl import libpq
 from psycopg2ct._impl import typecasts
 from psycopg2ct._impl import util
@@ -32,6 +33,17 @@ def check_no_tuples(func):
             raise ProgrammingError("no results to fetch")
         return func(self, *args, **kwargs)
     return check_no_tuples_
+
+
+def check_async(func):
+    @wraps(func)
+    def check_async_(self, *args, **kwargs):
+        if self._connection._async:
+            raise exceptions.ProgrammingError(
+                '%s cannot be used in asynchronous mode' % func.__name__)
+        return func(self, *args, **kwargs)
+    return check_async_
+
 
 # Used for Cursor.description
 Column = namedtuple('Column', ['name', 'type_code', 'display_size',
