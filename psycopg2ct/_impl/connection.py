@@ -650,6 +650,11 @@ class Connection(object):
             libpq.PQfinish(self._pgconn)
             self._pgconn = None
 
+        # Remove the notice processor, this removes a cyclic reference so
+        # that the connection object can be garbage collected
+        if self._notice_callback:
+            self._notice_callback = None
+
         self._notices = None
 
     def _commit(self):
