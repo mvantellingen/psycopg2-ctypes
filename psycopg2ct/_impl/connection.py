@@ -63,6 +63,26 @@ def check_async(func):
         return func(self, *args, **kwargs)
     return check_async_
 
+
+class Notify(tuple):
+    def __new__(cls, pid, channel, payload=''):
+        obj = tuple.__new__(cls, (pid, channel))
+        obj._payload = payload
+        return obj
+
+    @property
+    def pid(self):
+        return self[0]
+
+    @property
+    def channel(self):
+        return self[1]
+
+    @property
+    def payload(self):
+        return self._payload
+
+
 class Connection(object):
 
     # Various exceptions which should be accessible via the Connection
@@ -335,6 +355,10 @@ class Connection(object):
     @property
     def notices(self):
         return self._notices
+
+    @property
+    def notifies(self):
+        return []
 
     @property
     @check_closed
