@@ -40,6 +40,13 @@ def pq_get_last_result(pgconn):
     return pgres
 
 
+def escape_string(conn, value):
+    from psycopg2ct.extensions import QuotedString
+    obj = QuotedString(value)
+    obj.prepare(conn)
+    return obj.getquoted()
+
+
 def create_operational_error(pgconn):
     error_msg = libpq.PQerrorMessage(pgconn)
     return exceptions.OperationalError(error_msg)
