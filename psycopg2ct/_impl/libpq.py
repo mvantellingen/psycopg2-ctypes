@@ -272,6 +272,20 @@ PQrequestCancel = libpq.PQrequestCancel
 PQrequestCancel.argtypes = [PGconn_p]
 PQrequestCancel.restype = c_int
 
+# Functions Associated with the COPY Command
+
+PQgetCopyData = libpq.PQgetCopyData
+PQgetCopyData.argtypes = [PGconn_p, POINTER(c_char_p), c_int]
+PQgetCopyData.restype = c_int
+
+PQputCopyData = libpq.PQputCopyData
+PQputCopyData.argtypes = [PGconn_p, c_char_p, c_int]
+PQputCopyData.restype = c_int
+
+PQputCopyEnd = libpq.PQputCopyEnd
+PQputCopyEnd.argtypes = [PGconn_p, c_char_p]
+PQputCopyEnd.restype = c_int
+
 # Miscellaneous functions
 
 PQfreemem = libpq.PQfreemem

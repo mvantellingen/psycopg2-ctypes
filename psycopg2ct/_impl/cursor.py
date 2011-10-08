@@ -1,5 +1,6 @@
-from functools import wraps
 from collections import namedtuple
+from functools import wraps
+from io import TextIOBase
 import weakref
 
 from psycopg2ct import tz
@@ -97,6 +98,8 @@ class Cursor(object):
         self._statusmessage = None
         self._typecasts = {}
         self._pgres = None
+        self._copyfile = None
+        self._copysize = None
 
     def __del__(self):
         if self._pgres:
@@ -310,11 +313,67 @@ class Cursor(object):
             self._description = tuple(description)
             self._casts = casts
 
+        elif pgstatus == libpq.PGRES_COPY_IN:
+            return self._pq_fetch_copy_in()
+
+        elif pgstatus == libpq.PGRES_COPY_OUT:
+            return self._pq_fetch_copy_out()
+
         elif pgstatus == libpq.PGRES_EMPTY_QUERY:
             raise ProgrammingError("can't execute an empty query")
 
         else:
             self._connection._raise_operational_error(self._pgres)
+
+    def _pq_fetch_copy_in(self):
+        pgconn = self._connection._pgconn
+        size = self._copysize
+        error = 0
+        while True:
+            data = self._copyfile.read(size)
+            if isinstance(self._copyfile, TextIOBase):
+                data = util.escape_string(pgconn, data)
+
+            length = len(data)
+            if not length:
+                break
+            res = libpq.PQputCopyData(pgconn, data, length)
+            if res <= 0:
+                error = 2
+                break
+
+        errmsg = None
+        if error == 2:
+            errmsg = 'error in PQputCopyData() call'
+
+        libpq.PQputCopyEnd(pgconn, errmsg)
+        self._clear_pgres()
+        util.pq_clear_async(pgconn)
+
+    def _pq_fetch_copy_out(self):
+        is_text = isinstance(self._copyfile, TextIOBase)
+        pgconn = self._connection._pgconn
+        while True:
+            buf = libpq.pointer(libpq.c_char_p())
+            length = libpq.PQgetCopyData(pgconn, buf, 0)
+
+            if length > 0:
+                value = buf.contents.value
+                if is_text:
+                    value = typecasts.parse_unicode(value, length, self)
+                libpq.PQfreemem(buf.contents)
+
+                if value is None:
+                    return
+
+                self._copyfile.write(value)
+            elif length == -2:
+                raise util.create_operational_error(pgconn)
+            else:
+                break
+
+        self._clear_pgres()
+        util.pq_clear_async(pgconn)
 
     @check_closed
     def executemany(self, query, paramlist):
@@ -475,6 +534,59 @@ class Cursor(object):
             query = query.encode(self._connection._py_enc)
 
         return _combine_cmd_params(query, vars, self._connection)
+
+    @check_closed
+    @check_async
+    def copy_from(self, file, table, sep='\t', null='\N', size=8192,
+                  columns=None):
+        """Reads data from a file-like object appending them to a database
+        table (COPY table FROM file syntax).
+
+        The source file must have both read() and readline() method.
+
+        TODO: Improve error handling
+
+        """
+        if columns:
+            columns_str = '(%s)' % ','.join([column for column in columns])
+        else:
+            columns_str = ''
+
+        query = "COPY %s%s FROM stdin WITH DELIMITER AS %s" % (
+            table, columns_str, util.escape_string(self._connection, sep))
+        if null:
+            query += " NULL AS %s" % util.escape_string(self._connection, null)
+
+        self._copysize = size
+        self._copyfile = file
+        self._pq_execute(query)
+        self._copyfile = None
+        self._copysize = None
+
+    @check_closed
+    @check_async
+    def copy_to(self, file, table, sep='\t', null='\N', columns=None):
+        """Writes the content of a table to a file-like object (COPY table
+        TO file syntax).
+
+        The target file must have a write() method.
+
+        TODO: Improve error handling
+
+        """
+        if columns:
+            columns_str = '(%s)' % ','.join([column for column in columns])
+        else:
+            columns_str = ''
+
+        query = "COPY %s%s TO stdout WITH DELIMITER AS %s" % (
+            table, columns_str, util.escape_string(self._connection, sep))
+        if null:
+            query += " NULL AS %s" % util.escape_string(self._connection, null)
+
+        self._copyfile = file
+        self._pq_execute(query)
+        self._copyfile = None
 
     @check_closed
     def setinputsizes(self, sizes):
