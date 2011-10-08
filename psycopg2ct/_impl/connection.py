@@ -90,6 +90,10 @@ class Connection(object):
         self._autocommit = False
         self._async = async
         self._pgconn = None
+
+        # The number of commits/rollbacks done so far
+        self._mark = 0
+
         self._async_status = None
         self._async_cursor = None
 
@@ -158,6 +162,7 @@ class Connection(object):
         self._execute_command(
             "ABORT; RESET ALL; SET SESSION AUTHORIZATION DEFAULT;")
         self.status = consts.STATUS_READY
+        self._mark += 1
         self._autocommit = False
         self._tpc_xid = None
 
@@ -584,6 +589,7 @@ class Connection(object):
         tid.prepare(self)
         cmd = '%s %s' % (command, tid)
         self._execute_command(cmd)
+        self._mark += 1
 
     def _finish_tpc(self, command, fallback, xid):
         if xid:
@@ -628,12 +634,14 @@ class Connection(object):
     def _commit(self):
         if self._autocommit or self.status != consts.STATUS_BEGIN:
             return
+        self._mark += 1
         self._execute_command('COMMIT')
         self.status = consts.STATUS_READY
 
     def _rollback(self):
         if self._autocommit or self.status != consts.STATUS_BEGIN:
             return
+        self._mark += 1
         self._execute_command('ROLLBACK')
         self.status = consts.STATUS_READY
 
