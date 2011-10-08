@@ -3,11 +3,9 @@ from psycopg2ct._impl import libpq
 
 
 def pq_is_busy(conn):
-
     if libpq.PQconsumeInput(conn._pgconn) == 0:
         raise exceptions.OperationalError(
             libpq.PQerrorMessage(conn._pgconn))
-
     return libpq.PQisBusy(conn._pgconn)
 
 
