@@ -238,8 +238,8 @@ class Cursor(object):
             self._pgres = libpq.PQexec(pgconn, query)
             if not self._pgres:
                 raise self._connection._create_exception(pgres=self._pgres)
+            self._connection._process_notifies()
             self._pq_fetch()
-
         else:
             ret = libpq.PQsendQuery(pgconn, query)
             if not ret:

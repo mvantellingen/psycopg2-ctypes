@@ -2,13 +2,6 @@ from psycopg2ct._impl import exceptions
 from psycopg2ct._impl import libpq
 
 
-def pq_is_busy(conn):
-    if libpq.PQconsumeInput(conn._pgconn) == 0:
-        raise exceptions.OperationalError(
-            libpq.PQerrorMessage(conn._pgconn))
-    return libpq.PQisBusy(conn._pgconn)
-
-
 def pq_set_non_blocking(pgconn, arg, raise_exception=False):
     ret = libpq.PQsetnonblocking(pgconn, arg)
     if ret != 0 and raise_exception:

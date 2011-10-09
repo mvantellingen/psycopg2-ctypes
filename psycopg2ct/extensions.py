@@ -20,7 +20,7 @@ from psycopg2ct._impl.adapters import Binary, Boolean, Int, Float
 from psycopg2ct._impl.adapters import QuotedString, AsIs, ISQLQuote
 
 
-from psycopg2ct._impl.connection import Notify
+from psycopg2ct._impl.notify import Notify
 
 # The following are not available in psycopg2.extensions so figure that out.
 from psycopg2ct._impl.adapters import List, DateTime, Decimal

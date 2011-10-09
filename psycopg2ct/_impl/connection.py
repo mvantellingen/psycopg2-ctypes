@@ -8,6 +8,7 @@ from psycopg2ct._impl import libpq
 from psycopg2ct._impl import util
 from psycopg2ct._impl.cursor import Cursor
 from psycopg2ct._impl.lobject import LargeObject
+from psycopg2ct._impl.notify import Notify
 from psycopg2ct._impl.xid import Xid
 
 
@@ -64,23 +65,7 @@ def check_async(func):
     return check_async_
 
 
-class Notify(tuple):
-    def __new__(cls, pid, channel, payload=''):
-        obj = tuple.__new__(cls, (pid, channel))
-        obj._payload = payload
-        return obj
 
-    @property
-    def pid(self):
-        return self[0]
-
-    @property
-    def channel(self):
-        return self[1]
-
-    @property
-    def payload(self):
-        return self._payload
 
 
 class Connection(object):
@@ -108,14 +93,16 @@ class Connection(object):
         self._typecasts = {}
         self._tpc_xid = None
         self._notices = deque(maxlen=50)
+        self._notifies = []
         self._autocommit = False
-        self._async = async
         self._pgconn = None
+
 
         # The number of commits/rollbacks done so far
         self._mark = 0
 
-        self._async_status = None
+        self._async = async
+        self._async_status = consts.ASYNC_DONE
         self._async_cursor = None
 
         if not self._async:
@@ -358,7 +345,7 @@ class Connection(object):
 
     @property
     def notifies(self):
-        return []
+        return self._notifies
 
     @property
     @check_closed
@@ -493,12 +480,12 @@ class Connection(object):
 
         elif self._async_status == consts.ASYNC_READ:
             if self._async:
-                ret= self._poll_advance_read(util.pq_is_busy(self))
+                ret = self._poll_advance_read(self._is_busy())
             else:
-                raise NotImplemented()  # green threads
+                ret = self._poll_advance_read(self._is_busy())
 
         elif self._async_status == consts.ASYNC_DONE:
-            ret = self._poll_advance_read(util.pq_is_busy(self))
+            ret = self._poll_advance_read(self._is_busy())
 
         else:
             ret = consts.POLL_ERROR
@@ -520,7 +507,7 @@ class Connection(object):
         return consts.POLL_ERROR
 
     def _poll_advance_read(self, busy):
-        """Advance to the next state after a call to a pq_is_busy* function"""
+        """Advance to the next state after a call to a _is_busy* method"""
         if busy == 0:
             self._async_status = consts.ASYNC_DONE
             return consts.POLL_OK
@@ -643,8 +630,8 @@ class Connection(object):
     def _close(self):
         self._closed = True
 
-        if self._cancel:
-            libpq.PQfreeCancel(self._cancel)
+        #if self._cancel:
+        #    libpq.PQfreeCancel(self._cancel)
 
         if self._pgconn:
             libpq.PQfinish(self._pgconn)
@@ -676,6 +663,28 @@ class Connection(object):
         client_encoding = self.get_parameter_status('client_encoding')
         self._encoding = _enc.normalize(client_encoding)
         self._py_enc = _enc.encodings[self._encoding]
+
+    def _is_busy(self):
+        if libpq.PQconsumeInput(self._pgconn) == 0:
+            raise exceptions.OperationalError(
+                libpq.PQerrorMessage(self._pgconn))
+        res = libpq.PQisBusy(self._pgconn)
+        self._process_notifies()
+        return res
+
+    def _process_notifies(self):
+        while True:
+            pg_notify = libpq.PQnotifies(self._pgconn)
+            if not pg_notify:
+                break
+
+            notify = Notify(
+                pg_notify.contents.be_pid,
+                pg_notify.contents.relname,
+                pg_notify.contents.extra)
+            self._notifies.append(notify)
+
+            libpq.PQfreemem(pg_notify)
 
     def _get_exc_type_for_state(self, code):
         exc_type = None

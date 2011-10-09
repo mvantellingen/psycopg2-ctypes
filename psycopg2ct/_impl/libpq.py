@@ -64,7 +64,13 @@ PostgresPollingStatusType = c_int
 
 
 class PGnotify(Structure):
-    pass
+    _fields_ = [
+        ('relname', c_char_p),
+        ('be_pid', c_int),
+        ('extra', c_char_p)
+    ]
+
+PGnotify_p = POINTER(PGnotify)
 
 
 # Database connection control functions
@@ -301,6 +307,11 @@ PQsetNoticeProcessor.argtypes = [PGconn_p, PQnoticeProcessor, c_void_p]
 PQsetNoticeProcessor.restype = PQnoticeProcessor
 
 
+PQnotifies = libpq.PQnotifies
+PQnotifies.argtypes = [PGconn_p]
+PQnotifies.restype = PGnotify_p
+
+
 # Large object
 Oid = c_int
 lo_open = libpq.lo_open
@@ -346,3 +357,4 @@ lo_export.restype = c_int
 lo_truncate = libpq.lo_truncate
 lo_truncate.argtypes = [PGconn_p, c_int, c_int]
 lo_truncate.restype = c_int
+
