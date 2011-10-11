@@ -1,5 +1,4 @@
 from functools import wraps
-from collections import deque
 
 from psycopg2ct._impl import consts
 from psycopg2ct._impl import encodings as _enc
@@ -92,7 +91,6 @@ class Connection(object):
         self._cancel = None
         self._typecasts = {}
         self._tpc_xid = None
-        self._notices = deque(maxlen=50)
         self._notifies = []
         self._autocommit = False
         self._pgconn = None
@@ -105,6 +103,8 @@ class Connection(object):
         self._async = async
         self._async_status = consts.ASYNC_DONE
         self._async_cursor = None
+
+        self.notices = []
 
         if not self._async:
             self._connect_sync()
@@ -119,8 +119,7 @@ class Connection(object):
             raise util.create_operational_error(self._pgconn)
 
         # Register notice processor
-        self._notice_callback = libpq.PQnoticeProcessor(
-            lambda arg, message: self._notices.append(message))
+        self._notice_callback = libpq.PQnoticeProcessor(self._process_notice)
         libpq.PQsetNoticeProcessor(self._pgconn, self._notice_callback, None)
 
         self.status = consts.STATUS_READY
@@ -142,8 +141,7 @@ class Connection(object):
             raise util.create_operational_error(self._pgconn)
 
         # Register notice processor
-        self._notice_callback = libpq.PQnoticeProcessor(
-            lambda arg, message: self._notices.append(message))
+        self._notice_callback = libpq.PQnoticeProcessor(self._process_notice)
         libpq.PQsetNoticeProcessor(self._pgconn, self._notice_callback, None)
 
     def __del__(self):
@@ -338,11 +336,6 @@ class Connection(object):
         self._set_guc('client_encoding', encoding)
         self._encoding = encoding
         self._py_enc = pyenc
-
-
-    @property
-    def notices(self):
-        return self._notices
 
     @property
     def notifies(self):
@@ -645,7 +638,7 @@ class Connection(object):
         if self._notice_callback:
             self._notice_callback = None
 
-        self._notices = None
+        self.notices = []
 
     def _commit(self):
         if self._autocommit or self.status != consts.STATUS_BEGIN:
@@ -679,6 +672,12 @@ class Connection(object):
         res = libpq.PQisBusy(self._pgconn)
         self._process_notifies()
         return res
+
+    def _process_notice(self, arg, message):
+        self.notices.append(message)
+
+        length = len(self.notices)
+        del self.notices[:length - 50]
 
     def _process_notifies(self):
         while True:
