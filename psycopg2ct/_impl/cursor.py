@@ -213,6 +213,14 @@ class Cursor(object):
         self._description = None
         conn = self._connection
 
+        if self._name:
+            if self._query:
+                raise ProgrammingError(
+                    "can't call .execute() on named cursors more than once")
+            if self._connection.autocommit:
+                raise ProgrammingError(
+                    "can't use a named cursor outside of transactions")
+
         if isinstance(query, unicode):
             query = query.encode(self._connection._py_enc)
 
@@ -243,6 +251,13 @@ class Cursor(object):
         else:
             ret = libpq.PQsendQuery(pgconn, query)
             if not ret:
+
+                # XXX: check if this is correct, seems like a hack.
+                # but the test_async_after_async expects it.
+                if self._connection._async_cursor:
+                    raise ProgrammingError(
+                        'cannot be used while an asynchronous query is underway')
+
                 raise self._connection._create_exception()
 
             ret = libpq.PQflush(pgconn)
