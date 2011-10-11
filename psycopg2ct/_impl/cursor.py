@@ -718,6 +718,38 @@ class Cursor(object):
 
         self._withhold = bool(value)
 
+    @check_closed
+    def scroll(self, value, mode='relative'):
+        if not self._name:
+            if mode == 'relative':
+                new_pos = self._rownumber + value
+            elif mode == 'absolute':
+                new_pos = value
+            else:
+                raise ProgrammingError(
+                    "scroll mode must be 'relative' or 'absolute'")
+
+            if not 0 <= new_pos < self._rowcount:
+                raise ProgrammingError("scroll destination out of bounds")
+
+            self._rownumber = new_pos
+        else:
+            if self._connection._async_cursor is not None:
+                raise ProgrammingError(
+                    "cannot be used while an asynchronous query is underway")
+
+            if self._mark != self._conn._mark and not self._withhold:
+                raise ProgrammingError("named cursor isn't valid anymore")
+
+            # This should also raise a ProgrammingError if the mode is
+            # not absolute or relative. But mimic psycopg for now.
+            if mode == 'absolute':
+                cmd = 'MOVE ABSOLUTE %d FROM "%s"' % (value, self._name)
+            else:
+                cmd = 'MOVE %d FROM "%s"' % (value, self._name)
+            self._pq_execute(cmd)
+            self._pq_fetch()  # XXX: should be prefetch?
+
     def _clear_pgres(self):
         if self._pgres:
             libpq.PQclear(self._pgres)
