@@ -109,6 +109,10 @@ class Binary(_BaseAdapter):
 
         data = data_pointer[:to_length.value - 1]
         libpq.PQfreemem(data_pointer)
+
+        if self._conn and self._conn._equote:
+            return r"E'%s'::bytea" % data
+
         return r"'%s'::bytea" % data
 
 
@@ -177,6 +181,9 @@ class QuotedString(_BaseAdapter):
             err = libpq.c_int()
             libpq.PQescapeStringConn(
                 self._conn._pgconn, to, string, length, err)
+
+            if self._conn and self._conn._equote:
+                return "E'%s'" % to.value
             return "'%s'" % to.value
 
         data_pointer = libpq.PQescapeLiteral(

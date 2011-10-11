@@ -96,6 +96,7 @@ class Connection(object):
         self._notifies = []
         self._autocommit = False
         self._pgconn = None
+        self._equote = False
 
 
         # The number of commits/rollbacks done so far
@@ -528,6 +529,7 @@ class Connection(object):
         if self.status == consts.STATUS_CONNECTING:
             util.pq_set_non_blocking(self._pgconn, 1, True)
 
+            self._equote = self._get_equote()
             self._get_encoding()
             self._cancel = libpq.PQgetCancel(self._pgconn)
             if self._cancel is None:
@@ -566,6 +568,7 @@ class Connection(object):
         return consts.POLL_ERROR
 
     def _setup(self):
+        self._equote = self._get_equote()
         self._get_encoding()
 
         self._cancel = libpq.PQgetCancel(self._pgconn)
@@ -663,6 +666,11 @@ class Connection(object):
         client_encoding = self.get_parameter_status('client_encoding')
         self._encoding = _enc.normalize(client_encoding)
         self._py_enc = _enc.encodings[self._encoding]
+
+    def _get_equote(self):
+        ret = libpq.PQparameterStatus(
+            self._pgconn, 'standard_conforming_strings')
+        return ret and ret == 'off'
 
     def _is_busy(self):
         if libpq.PQconsumeInput(self._pgconn) == 0:

@@ -145,7 +145,9 @@ INTEGER = _default_type('INTEGER', [23, 21], typecasts.parse_integer)
 INTERVAL = _default_type('INTERVAL', [704, 1186], typecasts.parse_interval)
 LONGINTEGER = _default_type('LONGINTEGER', [20], typecasts.parse_longinteger)
 TIME = _default_type('TIME', [1083, 1266], typecasts.parse_time)
-UNICODE = _default_type('UNICODE', [19, 18, 25, 1042, 1043], typecasts.parse_unicode)
+
+
+UNICODE = Type('UNICODE', [19, 18, 25, 1042, 1043], typecasts.parse_unicode)
 
 # Array types
 INTEGERARRAY = _default_type(
