@@ -376,6 +376,7 @@ class Cursor(object):
         util.pq_clear_async(pgconn)
 
     @check_closed
+    @check_async
     def executemany(self, query, paramlist):
         """Prepare a database operation (query or command) and then execute
         it against all parameter sequences or mappings found in the sequence
