@@ -298,6 +298,7 @@ class Connection(object):
             raise exceptions.ProgrammingError(
                 "asynchronous connections cannot produce named cursors")
 
+        cur._mark = self._mark
         return cur
 
     @check_closed
