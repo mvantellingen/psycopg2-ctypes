@@ -644,8 +644,10 @@ class Connection(object):
         if self._autocommit or self.status != consts.STATUS_BEGIN:
             return
         self._mark += 1
-        self._execute_command('COMMIT')
-        self.status = consts.STATUS_READY
+        try:
+            self._execute_command('COMMIT')
+        finally:
+            self.status = consts.STATUS_READY
 
     def _rollback(self):
         if self._autocommit or self.status != consts.STATUS_BEGIN:
