@@ -117,7 +117,7 @@ class Connection(object):
         if not self._pgconn:
             raise exceptions.OperationalError('PQconnectdb() failed')
         elif libpq.PQstatus(self._pgconn) == libpq.CONNECTION_BAD:
-            raise util.create_operational_error(self._pgconn)
+            raise self._create_exception()
 
         # Register notice processor
         libpq.PQsetNoticeProcessor(self._pgconn, self._notice_callback, None)
@@ -138,7 +138,7 @@ class Connection(object):
         if not self._pgconn:
             raise exceptions.OperationalError('PQconnectStart() failed')
         elif libpq.PQstatus(self._pgconn) == libpq.CONNECTION_BAD:
-            raise util.create_operational_error(self._pgconn)
+            raise self._create_exception()
 
         # Register notice processor
         libpq.PQsetNoticeProcessor(self._pgconn, self._notice_callback, None)
@@ -501,7 +501,7 @@ class Connection(object):
             return consts.POLL_WRITE
 
         if flush == -1:
-            raise util.create_operational_error(self._pgconn)
+            raise self._create_exception()
 
         return consts.POLL_ERROR
 
@@ -544,7 +544,7 @@ class Connection(object):
                     self._async_status = consts.ASYNC_WRITE
                     return consts.POLL_WRITE
                 else:
-                    raise util.create_operational_error(self._pgconn)
+                    raise self._create_exception()
 
             self.status = consts.STATUS_READY
             return consts.POLL_OK
