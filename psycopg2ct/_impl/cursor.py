@@ -347,12 +347,12 @@ class Cursor(object):
         while True:
             data = self._copyfile.read(size)
             if isinstance(self._copyfile, TextIOBase):
-                data = util.escape_string(pgconn, data)
+                data = data.encode(self._connection._py_enc)
 
-            length = len(data)
-            if not length:
+            if not data:
                 break
-            res = libpq.PQputCopyData(pgconn, data, length)
+
+            res = libpq.PQputCopyData(pgconn, data, len(data))
             if res <= 0:
                 error = 2
                 break
@@ -602,6 +602,20 @@ class Cursor(object):
 
         self._copyfile = file
         self._pq_execute(query)
+        self._copyfile = None
+
+    @check_closed
+    @check_async
+    def copy_expert(self, sql, file, size=8196):
+        if not sql:
+            return
+        
+        if not hasattr(file, 'read') and not hasattr(file, 'write'):
+            raise TypeError("file must be a readable file-like object for"
+                " COPY FROM; a writeable file-like object for COPY TO.")
+
+        self._copyfile = file
+        self._pq_execute(sql)
         self._copyfile = None
 
     @check_closed
