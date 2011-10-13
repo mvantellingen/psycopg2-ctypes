@@ -19,6 +19,9 @@ class _BaseAdapter(object):
     def __str__(self):
         return self.getquoted()
 
+    @property
+    def adapted(self):
+        return self._wrapped
 
 class ISQLQuote(_BaseAdapter):
     def getquoted(self):
