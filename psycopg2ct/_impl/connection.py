@@ -693,45 +693,98 @@ class Connection(object):
             libpq.PQfreemem(pg_notify)
 
     def _get_exc_type_for_state(self, code):
-        exc_type = None
+        """Translate the sqlstate to a relevant exception.
+        
+        See for a list of possible errors:
+        http://www.postgresql.org/docs/current/static/errcodes-appendix.html
+
+        """
         if code[0] == '0':
+            # Class 0A - Feature Not Supported 
             if code[1] == 'A':
                 return exceptions.NotSupportedError
 
         elif code[0] == '2':
-            if code[1] == '1':
+            # Class 21 - Cardinality Violation
+            if code[1] == '1':  
                 return exceptions.ProgrammingError
-            if code[1] == '2':
+
+            # Class 22 - Data Exception
+            if code[1] == '2':  
                 return exceptions.DataError
-            if code[1] == '3':
+
+            # Class 23 - Integrity Constraint Violation
+            if code[1] == '3':  
                 return exceptions.IntegrityError
-            if code[1] in '45':
+
+            # Class 24 - Invalid Cursor State
+            # Class 25 - Invalid Transaction State
+            if code[1] in '45': 
                 return exceptions.InternalError
+
+            # Class 26 - Invalid SQL Statement Name
+            # Class 27 - Triggered Data Change Violation
+            # Class 28 - Invalid Authorization Specification
             if code[1] in '678':
                 return exceptions.OperationalError
+
+            # Class 2B - Dependent Privilege Descriptors Still Exist
+            # Class 2D - Invalid Transaction Termination
+            # Class 2F - SQL Routine Exception
             if code[1] in 'BDF':
                 return exceptions.InternalError
+
         elif code[0] == '3':
+            # Class 34 - Invalid Cursor Name
             if code[1] == '4':
                 return exceptions.OperationalError
+
+            # Class 38 - External Routine Exception
+            # Class 39 - External Routine Invocation Exception
+            # Class 3B - Savepoint Exception
             if code[1] in '89B':
                 return exceptions.InternalError
+            
+            # Class 3D - Invalid Catalog Name
+            # Class 3F - Invalid Schema Name
             if code[1] in 'DF':
                 return exceptions.ProgrammingError
+
         elif code[0] == '4':
+            # Class 40 - Transaction Rollback
             if code[1] == '0':
                 return exceptions.TransactionRollbackError
-            if code[1] == '2':
-                exc_type = exceptions.ProgrammingError
+
+            # Class 42 - Syntax Error or Access Rule Violation
+            # Class 44 - WITH CHECK OPTION Violation
+            if code[1] in '24':
+                return exceptions.ProgrammingError
+
         elif code[0] == '5':
             if code == '57014':
                 return exceptions.QueryCanceledError
+
+            # Class 53 - Insufficient Resources
+            # Class 54 - Program Limit Exceeded
+            # Class 55 - Object Not In Prerequisite State
+            # Class 57 - Operator Intervention
+            # Class 58 - System Error (errors external to PostgreSQL itself) 
+            if code in '34578':
+                return exceptions.OperationalError
+        
         elif code[0] == 'F':
+            # Class F0 - Configuration File Error
             return exceptions.InternalError
+
         elif code[0] == 'P':
+            # Class P0 - PL/pgSQL Error
             return exceptions.InternalError
+
         elif code[0] == 'X':
+            # Class XX - Internal Error
             return exceptions.InternalError
+        
+        # Fallback exception
         return exceptions.DatabaseError
 
     def _create_exception(self, pgres=None, msg=None):
