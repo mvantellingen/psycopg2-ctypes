@@ -10,7 +10,7 @@ string_types = {}
 
 
 def typecast(caster, value, length, cursor):
-    return caster.cast(value, length, cursor)
+    return caster.cast(value, cursor, length)
 
 
 def parse_unknown(value, length, cursor):
