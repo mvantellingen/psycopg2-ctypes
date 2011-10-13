@@ -19,6 +19,9 @@ class DatabaseError(Error):
     pass
 
 
+class DataError(DatabaseError):
+    pass
+
 class OperationalError(DatabaseError):
     pass
 

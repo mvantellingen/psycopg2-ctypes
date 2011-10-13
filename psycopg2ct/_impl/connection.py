@@ -697,13 +697,45 @@ class Connection(object):
 
     def _get_exc_type_for_state(self, code):
         exc_type = None
-        if code[0] == '2':
+        if code[0] == '0':
+            if code[1] == 'A':
+                return exceptions.NotSupportedError
+
+        elif code[0] == '2':
+            if code[1] == '1':
+                return exceptions.ProgrammingError
+            if code[1] == '2':
+                return exceptions.DataError
             if code[1] == '3':
-                exc_type = exceptions.IntegrityError
+                return exceptions.IntegrityError
+            if code[1] in '45':
+                return exceptions.InternalError
+            if code[1] in '678':
+                return exceptions.OperationalError
+            if code[1] in 'BDF':
+                return exceptions.InternalError
+        elif code[0] == '3':
+            if code[1] == '4':
+                return exceptions.OperationalError
+            if code[1] in '89B':
+                return exceptions.InternalError
+            if code[1] in 'DF':
+                return exceptions.ProgrammingError
         elif code[0] == '4':
+            if code[1] == '0':
+                return exceptions.TransactionRollbackError
             if code[1] == '2':
                 exc_type = exceptions.ProgrammingError
-        return exc_type
+        elif code[0] == '5':
+            if code == '57014':
+                return exceptions.QueryCanceledError
+        elif code[0] == 'F':
+            return exceptions.InternalError
+        elif code[0] == 'P':
+            return exceptions.InternalError
+        elif code[0] == 'X':
+            return exceptions.InternalError
+        return exceptions.DatabaseError
 
     def _create_exception(self, pgres=None, msg=None):
         """Return the exception to be raise'd"""
