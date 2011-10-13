@@ -679,7 +679,8 @@ class Connection(object):
         self.notices.append(message)
 
         length = len(self.notices)
-        del self.notices[:length - 50]
+        if length > 50:
+            del self.notices[:length - 50]
 
     def _process_notifies(self):
         while True:
