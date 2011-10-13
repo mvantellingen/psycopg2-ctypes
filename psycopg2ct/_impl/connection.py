@@ -96,6 +96,7 @@ class Connection(object):
         self._pgconn = None
         self._equote = False
 
+        self._notice_callback = libpq.PQnoticeProcessor(self._process_notice)
 
         # The number of commits/rollbacks done so far
         self._mark = 0
@@ -119,7 +120,6 @@ class Connection(object):
             raise util.create_operational_error(self._pgconn)
 
         # Register notice processor
-        self._notice_callback = libpq.PQnoticeProcessor(self._process_notice)
         libpq.PQsetNoticeProcessor(self._pgconn, self._notice_callback, None)
 
         self.status = consts.STATUS_READY
@@ -141,11 +141,15 @@ class Connection(object):
             raise util.create_operational_error(self._pgconn)
 
         # Register notice processor
-        self._notice_callback = libpq.PQnoticeProcessor(self._process_notice)
         libpq.PQsetNoticeProcessor(self._pgconn, self._notice_callback, None)
 
     def __del__(self):
         self._close()
+
+        # Remove the notice processor, this removes a cyclic reference so
+        # that the connection object can be garbage collected
+        if self._notice_callback:
+            self._notice_callback = None
 
     @check_closed
     def close(self):
@@ -633,11 +637,6 @@ class Connection(object):
         if self._pgconn:
             libpq.PQfinish(self._pgconn)
             self._pgconn = None
-
-        # Remove the notice processor, this removes a cyclic reference so
-        # that the connection object can be garbage collected
-        if self._notice_callback:
-            self._notice_callback = None
 
         self.notices = []
 
