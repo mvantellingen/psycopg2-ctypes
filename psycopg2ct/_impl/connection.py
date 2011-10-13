@@ -1,3 +1,4 @@
+import weakref
 from functools import wraps
 
 from psycopg2ct._impl import consts
@@ -95,8 +96,7 @@ class Connection(object):
         self._autocommit = False
         self._pgconn = None
         self._equote = False
-
-        self._notice_callback = libpq.PQnoticeProcessor(self._process_notice)
+        self.notices = []
 
         # The number of commits/rollbacks done so far
         self._mark = 0
@@ -105,7 +105,9 @@ class Connection(object):
         self._async_status = consts.ASYNC_DONE
         self._async_cursor = None
 
-        self.notices = []
+        self_ref = weakref.ref(self)
+        self._notice_callback = libpq.PQnoticeProcessor(
+            lambda arg, message: self_ref()._process_notice(arg, message))
 
         if not self._async:
             self._connect_sync()
@@ -140,16 +142,10 @@ class Connection(object):
         elif libpq.PQstatus(self._pgconn) == libpq.CONNECTION_BAD:
             raise self._create_exception()
 
-        # Register notice processor
         libpq.PQsetNoticeProcessor(self._pgconn, self._notice_callback, None)
 
     def __del__(self):
         self._close()
-
-        # Remove the notice processor, this removes a cyclic reference so
-        # that the connection object can be garbage collected
-        if self._notice_callback:
-            self._notice_callback = None
 
     @check_closed
     def close(self):
