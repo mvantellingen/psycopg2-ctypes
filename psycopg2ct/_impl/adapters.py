@@ -208,7 +208,7 @@ def adapt(value, proto=ISQLQuote, alt=None):
     conform = getattr(value, '__conform__', None)
     if conform is not None:
         return conform(proto)
-    raise ProgrammingError("can't adapt type '%s'", obj_type)
+    raise ProgrammingError("can't adapt type '%s'" % obj_type.__name__)
 
 
 def _getquoted(param, conn):
