@@ -213,6 +213,8 @@ def adapt(value, proto=ISQLQuote, alt=None):
 
 def _getquoted(param, conn):
     """Helper method"""
+    if param is None:
+        return 'NULL'
     adapter = adapt(param)
     try:
         adapter.prepare(conn)
