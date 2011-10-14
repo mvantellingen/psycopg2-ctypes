@@ -90,7 +90,7 @@ class Type(object):
     def __eq__(self, other):
         return other in self.values
 
-    def cast(self, value, length, cursor):
+    def cast(self, value, cursor, length=None):
         if self.py_caster is not None:
             return self.py_caster(value, cursor)
         return self.caster(value, length, cursor)

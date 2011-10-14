@@ -1,3 +1,4 @@
+import weakref
 from functools import wraps
 
 from psycopg2ct._impl import consts
@@ -95,7 +96,7 @@ class Connection(object):
         self._autocommit = False
         self._pgconn = None
         self._equote = False
-
+        self.notices = []
 
         # The number of commits/rollbacks done so far
         self._mark = 0
@@ -104,7 +105,9 @@ class Connection(object):
         self._async_status = consts.ASYNC_DONE
         self._async_cursor = None
 
-        self.notices = []
+        self_ref = weakref.ref(self)
+        self._notice_callback = libpq.PQnoticeProcessor(
+            lambda arg, message: self_ref()._process_notice(arg, message))
 
         if not self._async:
             self._connect_sync()
@@ -116,10 +119,9 @@ class Connection(object):
         if not self._pgconn:
             raise exceptions.OperationalError('PQconnectdb() failed')
         elif libpq.PQstatus(self._pgconn) == libpq.CONNECTION_BAD:
-            raise util.create_operational_error(self._pgconn)
+            raise self._create_exception()
 
         # Register notice processor
-        self._notice_callback = libpq.PQnoticeProcessor(self._process_notice)
         libpq.PQsetNoticeProcessor(self._pgconn, self._notice_callback, None)
 
         self.status = consts.STATUS_READY
@@ -138,10 +140,8 @@ class Connection(object):
         if not self._pgconn:
             raise exceptions.OperationalError('PQconnectStart() failed')
         elif libpq.PQstatus(self._pgconn) == libpq.CONNECTION_BAD:
-            raise util.create_operational_error(self._pgconn)
+            raise self._create_exception()
 
-        # Register notice processor
-        self._notice_callback = libpq.PQnoticeProcessor(self._process_notice)
         libpq.PQsetNoticeProcessor(self._pgconn, self._notice_callback, None)
 
     def __del__(self):
@@ -497,7 +497,7 @@ class Connection(object):
             return consts.POLL_WRITE
 
         if flush == -1:
-            raise util.create_operational_error(self._pgconn)
+            raise self._create_exception()
 
         return consts.POLL_ERROR
 
@@ -540,7 +540,7 @@ class Connection(object):
                     self._async_status = consts.ASYNC_WRITE
                     return consts.POLL_WRITE
                 else:
-                    raise util.create_operational_error(self._pgconn)
+                    raise self._create_exception()
 
             self.status = consts.STATUS_READY
             return consts.POLL_OK
@@ -634,19 +634,16 @@ class Connection(object):
             libpq.PQfinish(self._pgconn)
             self._pgconn = None
 
-        # Remove the notice processor, this removes a cyclic reference so
-        # that the connection object can be garbage collected
-        if self._notice_callback:
-            self._notice_callback = None
-
         self.notices = []
 
     def _commit(self):
         if self._autocommit or self.status != consts.STATUS_BEGIN:
             return
         self._mark += 1
-        self._execute_command('COMMIT')
-        self.status = consts.STATUS_READY
+        try:
+            self._execute_command('COMMIT')
+        finally:
+            self.status = consts.STATUS_READY
 
     def _rollback(self):
         if self._autocommit or self.status != consts.STATUS_BEGIN:
@@ -695,14 +692,99 @@ class Connection(object):
             libpq.PQfreemem(pg_notify)
 
     def _get_exc_type_for_state(self, code):
-        exc_type = None
-        if code[0] == '2':
-            if code[1] == '3':
-                exc_type = exceptions.IntegrityError
+        """Translate the sqlstate to a relevant exception.
+        
+        See for a list of possible errors:
+        http://www.postgresql.org/docs/current/static/errcodes-appendix.html
+
+        """
+        if code[0] == '0':
+            # Class 0A - Feature Not Supported 
+            if code[1] == 'A':
+                return exceptions.NotSupportedError
+
+        elif code[0] == '2':
+            # Class 21 - Cardinality Violation
+            if code[1] == '1':  
+                return exceptions.ProgrammingError
+
+            # Class 22 - Data Exception
+            if code[1] == '2':  
+                return exceptions.DataError
+
+            # Class 23 - Integrity Constraint Violation
+            if code[1] == '3':  
+                return exceptions.IntegrityError
+
+            # Class 24 - Invalid Cursor State
+            # Class 25 - Invalid Transaction State
+            if code[1] in '45': 
+                return exceptions.InternalError
+
+            # Class 26 - Invalid SQL Statement Name
+            # Class 27 - Triggered Data Change Violation
+            # Class 28 - Invalid Authorization Specification
+            if code[1] in '678':
+                return exceptions.OperationalError
+
+            # Class 2B - Dependent Privilege Descriptors Still Exist
+            # Class 2D - Invalid Transaction Termination
+            # Class 2F - SQL Routine Exception
+            if code[1] in 'BDF':
+                return exceptions.InternalError
+
+        elif code[0] == '3':
+            # Class 34 - Invalid Cursor Name
+            if code[1] == '4':
+                return exceptions.OperationalError
+
+            # Class 38 - External Routine Exception
+            # Class 39 - External Routine Invocation Exception
+            # Class 3B - Savepoint Exception
+            if code[1] in '89B':
+                return exceptions.InternalError
+            
+            # Class 3D - Invalid Catalog Name
+            # Class 3F - Invalid Schema Name
+            if code[1] in 'DF':
+                return exceptions.ProgrammingError
+
         elif code[0] == '4':
-            if code[1] == '2':
-                exc_type = exceptions.ProgrammingError
-        return exc_type
+            # Class 40 - Transaction Rollback
+            if code[1] == '0':
+                return exceptions.TransactionRollbackError
+
+            # Class 42 - Syntax Error or Access Rule Violation
+            # Class 44 - WITH CHECK OPTION Violation
+            if code[1] in '24':
+                return exceptions.ProgrammingError
+
+        elif code[0] == '5':
+            if code == '57014':
+                return exceptions.QueryCanceledError
+
+            # Class 53 - Insufficient Resources
+            # Class 54 - Program Limit Exceeded
+            # Class 55 - Object Not In Prerequisite State
+            # Class 57 - Operator Intervention
+            # Class 58 - System Error (errors external to PostgreSQL itself) 
+            if code in '34578':
+                return exceptions.OperationalError
+        
+        elif code[0] == 'F':
+            # Class F0 - Configuration File Error
+            return exceptions.InternalError
+
+        elif code[0] == 'P':
+            # Class P0 - PL/pgSQL Error
+            return exceptions.InternalError
+
+        elif code[0] == 'X':
+            # Class XX - Internal Error
+            return exceptions.InternalError
+        
+        # Fallback exception
+        return exceptions.DatabaseError
 
     def _create_exception(self, pgres=None, msg=None):
         """Return the exception to be raise'd"""
