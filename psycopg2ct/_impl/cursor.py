@@ -240,155 +240,6 @@ class Cursor(object):
 
         self._pq_execute(self._query, conn._async)
 
-    def _pq_execute(self, query, async=False):
-        pgconn = self._connection._pgconn
-        if not async:
-            self._pgres = libpq.PQexec(pgconn, query)
-            if not self._pgres:
-                raise self._connection._create_exception(pgres=self._pgres)
-            self._connection._process_notifies()
-            self._pq_fetch()
-        else:
-            ret = libpq.PQsendQuery(pgconn, query)
-            if not ret:
-
-                # XXX: check if this is correct, seems like a hack.
-                # but the test_async_after_async expects it.
-                if self._connection._async_cursor:
-                    raise ProgrammingError(
-                        'cannot be used while an asynchronous query is underway')
-
-                raise self._connection._create_exception()
-
-            ret = libpq.PQflush(pgconn)
-            if ret == 0:
-                async_status = consts.ASYNC_READ
-            elif ret == 1:
-                async_status = consts.ASYNC_WRITE
-            else:
-                raise ValueError()  # XXX
-
-            self._connection._async_status = async_status
-            self._connection._async_cursor = weakref.ref(self)
-
-    def _pq_fetch(self):
-        pgstatus = libpq.PQresultStatus(self._pgres)
-        self._statusmessage = libpq.PQcmdStatus(self._pgres)
-
-        self._no_tuples = True
-        self._rownumber = 0
-
-        if pgstatus == libpq.PGRES_COMMAND_OK:
-            rowcount = libpq.PQcmdTuples(self._pgres)
-            if not rowcount or not rowcount[0]:
-                self._rowcount = -1
-            else:
-                self._rowcount = int(rowcount)
-            self._lastrowid = libpq.PQoidValue(self._pgres)
-            self._clear_pgres()
-
-        elif pgstatus == libpq.PGRES_TUPLES_OK:
-            self._rowcount = libpq.PQntuples(self._pgres)
-            self._no_tuples = False
-            self._nfields = libpq.PQnfields(self._pgres)
-            description = []
-            casts = []
-            for i in xrange(self._nfields):
-                ftype = libpq.PQftype(self._pgres, i)
-                fsize = libpq.PQfsize(self._pgres, i)
-                fmod = libpq.PQfmod(self._pgres, i)
-                if fmod > 0:
-                    fmod -= 4   # TODO: sizeof(int)
-
-                if fsize == -1:
-                    if ftype == 1700:   # NUMERIC
-                        isize = fmod >> 16
-                    else:
-                        isize = fmod
-                else:
-                    isize = fsize
-
-                if ftype == 1700:
-                    prec = (fmod >> 16) & 0xFFFF
-                    scale = fmod & 0xFFFF
-                else:
-                    prec = scale = None
-
-                casts.append(self._get_cast(ftype))
-                description.append(Column(
-                    name=libpq.PQfname(self._pgres, i),
-                    type_code=ftype,
-                    display_size=None,
-                    internal_size=isize,
-                    precision=prec,
-                    scale=scale,
-                    null_ok=None,
-                ))
-
-            self._description = tuple(description)
-            self._casts = casts
-
-        elif pgstatus == libpq.PGRES_COPY_IN:
-            return self._pq_fetch_copy_in()
-
-        elif pgstatus == libpq.PGRES_COPY_OUT:
-            return self._pq_fetch_copy_out()
-
-        elif pgstatus == libpq.PGRES_EMPTY_QUERY:
-            raise ProgrammingError("can't execute an empty query")
-
-        else:
-            raise self._connection._create_exception(pgres=self._pgres)
-
-    def _pq_fetch_copy_in(self):
-        pgconn = self._connection._pgconn
-        size = self._copysize
-        error = 0
-        while True:
-            data = self._copyfile.read(size)
-            if isinstance(self._copyfile, TextIOBase):
-                data = data.encode(self._connection._py_enc)
-
-            if not data:
-                break
-
-            res = libpq.PQputCopyData(pgconn, data, len(data))
-            if res <= 0:
-                error = 2
-                break
-
-        errmsg = None
-        if error == 2:
-            errmsg = 'error in PQputCopyData() call'
-
-        libpq.PQputCopyEnd(pgconn, errmsg)
-        self._clear_pgres()
-        util.pq_clear_async(pgconn)
-
-    def _pq_fetch_copy_out(self):
-        is_text = isinstance(self._copyfile, TextIOBase)
-        pgconn = self._connection._pgconn
-        while True:
-            buf = libpq.pointer(libpq.c_char_p())
-            length = libpq.PQgetCopyData(pgconn, buf, 0)
-
-            if length > 0:
-                value = buf.contents.value
-                if is_text:
-                    value = typecasts.parse_unicode(value, length, self)
-                libpq.PQfreemem(buf.contents)
-
-                if value is None:
-                    return
-
-                self._copyfile.write(value)
-            elif length == -2:
-                raise self._connection._create_exception()
-            else:
-                break
-
-        self._clear_pgres()
-        util.pq_clear_async(pgconn)
 
     @check_closed
     @check_async
@@ -783,6 +634,157 @@ class Cursor(object):
         if self._pgres:
             libpq.PQclear(self._pgres)
             self._pgres = None
+
+
+    def _pq_execute(self, query, async=False):
+        pgconn = self._connection._pgconn
+        if not async:
+            self._pgres = libpq.PQexec(pgconn, query)
+            if not self._pgres:
+                raise self._connection._create_exception(pgres=self._pgres)
+            self._connection._process_notifies()
+            self._pq_fetch()
+        else:
+            ret = libpq.PQsendQuery(pgconn, query)
+            if not ret:
+
+                # XXX: check if this is correct, seems like a hack.
+                # but the test_async_after_async expects it.
+                if self._connection._async_cursor:
+                    raise ProgrammingError(
+                        'cannot be used while an asynchronous query is underway')
+
+                raise self._connection._create_exception()
+
+            ret = libpq.PQflush(pgconn)
+            if ret == 0:
+                async_status = consts.ASYNC_READ
+            elif ret == 1:
+                async_status = consts.ASYNC_WRITE
+            else:
+                raise ValueError()  # XXX
+
+            self._connection._async_status = async_status
+            self._connection._async_cursor = weakref.ref(self)
+
+    def _pq_fetch(self):
+        pgstatus = libpq.PQresultStatus(self._pgres)
+        self._statusmessage = libpq.PQcmdStatus(self._pgres)
+
+        self._no_tuples = True
+        self._rownumber = 0
+
+        if pgstatus == libpq.PGRES_COMMAND_OK:
+            rowcount = libpq.PQcmdTuples(self._pgres)
+            if not rowcount or not rowcount[0]:
+                self._rowcount = -1
+            else:
+                self._rowcount = int(rowcount)
+            self._lastrowid = libpq.PQoidValue(self._pgres)
+            self._clear_pgres()
+
+        elif pgstatus == libpq.PGRES_TUPLES_OK:
+            self._rowcount = libpq.PQntuples(self._pgres)
+            self._no_tuples = False
+            self._nfields = libpq.PQnfields(self._pgres)
+            description = []
+            casts = []
+            for i in xrange(self._nfields):
+                ftype = libpq.PQftype(self._pgres, i)
+                fsize = libpq.PQfsize(self._pgres, i)
+                fmod = libpq.PQfmod(self._pgres, i)
+                if fmod > 0:
+                    fmod -= 4   # TODO: sizeof(int)
+
+                if fsize == -1:
+                    if ftype == 1700:   # NUMERIC
+                        isize = fmod >> 16
+                    else:
+                        isize = fmod
+                else:
+                    isize = fsize
+
+                if ftype == 1700:
+                    prec = (fmod >> 16) & 0xFFFF
+                    scale = fmod & 0xFFFF
+                else:
+                    prec = scale = None
+
+                casts.append(self._get_cast(ftype))
+                description.append(Column(
+                    name=libpq.PQfname(self._pgres, i),
+                    type_code=ftype,
+                    display_size=None,
+                    internal_size=isize,
+                    precision=prec,
+                    scale=scale,
+                    null_ok=None,
+                ))
+
+            self._description = tuple(description)
+            self._casts = casts
+
+        elif pgstatus == libpq.PGRES_COPY_IN:
+            return self._pq_fetch_copy_in()
+
+        elif pgstatus == libpq.PGRES_COPY_OUT:
+            return self._pq_fetch_copy_out()
+
+        elif pgstatus == libpq.PGRES_EMPTY_QUERY:
+            raise ProgrammingError("can't execute an empty query")
+
+        else:
+            raise self._connection._create_exception(pgres=self._pgres)
+
+    def _pq_fetch_copy_in(self):
+        pgconn = self._connection._pgconn
+        size = self._copysize
+        error = 0
+        while True:
+            data = self._copyfile.read(size)
+            if isinstance(self._copyfile, TextIOBase):
+                data = data.encode(self._connection._py_enc)
+
+            if not data:
+                break
+
+            res = libpq.PQputCopyData(pgconn, data, len(data))
+            if res <= 0:
+                error = 2
+                break
+
+        errmsg = None
+        if error == 2:
+            errmsg = 'error in PQputCopyData() call'
+
+        libpq.PQputCopyEnd(pgconn, errmsg)
+        self._clear_pgres()
+        util.pq_clear_async(pgconn)
+
+    def _pq_fetch_copy_out(self):
+        is_text = isinstance(self._copyfile, TextIOBase)
+        pgconn = self._connection._pgconn
+        while True:
+            buf = libpq.pointer(libpq.c_char_p())
+            length = libpq.PQgetCopyData(pgconn, buf, 0)
+
+            if length > 0:
+                value = buf.contents.value
+                if is_text:
+                    value = typecasts.parse_unicode(value, length, self)
+                libpq.PQfreemem(buf.contents)
+
+                if value is None:
+                    return
+
+                self._copyfile.write(value)
+            elif length == -2:
+                raise self._connection._create_exception()
+            else:
+                break
+
+        self._clear_pgres()
+        util.pq_clear_async(pgconn)
 
     def _build_row(self, row_num):
 
