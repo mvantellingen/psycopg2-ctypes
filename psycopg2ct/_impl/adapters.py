@@ -24,6 +24,7 @@ class _BaseAdapter(object):
     def adapted(self):
         return self._wrapped
 
+
 class ISQLQuote(_BaseAdapter):
     def getquoted(self):
         pass
@@ -32,62 +33,6 @@ class ISQLQuote(_BaseAdapter):
 class AsIs(_BaseAdapter):
     def getquoted(self):
         return str(self._wrapped)
-
-
-class Int(_BaseAdapter):
-    def getquoted(self):
-        value = str(self._wrapped)
-
-        # Prepend a space in front of negative numbers
-        if value.startswith('-'):
-            value = ' ' + value
-        return value
-
-
-class Long(_BaseAdapter):
-    def getquoted(self):
-        value = str(self._wrapped)
-
-        # Prepend a space in front of negative numbers
-        if value.startswith('-'):
-            value = ' ' + value
-        return value
-
-
-class Float(ISQLQuote):
-    def getquoted(self):
-        n = float(self._wrapped)
-        if math.isnan(n):
-            return "'NaN'::float"
-        elif math.isinf(n):
-            if n > 0:
-                return "'Infinity'::float"
-            else:
-                return "'-Infinity'::float"
-        else:
-            value = repr(self._wrapped)
-
-            # Prepend a space in front of negative numbers
-            if value.startswith('-'):
-                value = ' ' + value
-            return value
-
-
-class Decimal(_BaseAdapter):
-    def getquoted(self):
-        if self._wrapped.is_finite():
-            value = str(self._wrapped)
-
-            # Prepend a space in front of negative numbers
-            if value.startswith('-'):
-                value = ' ' + value
-            return value
-        return "'NaN'::numeric"
-
-
-class Boolean(_BaseAdapter):
-    def getquoted(self):
-        return 'true' if self._wrapped else 'false'
 
 
 class Binary(_BaseAdapter):
@@ -120,21 +65,9 @@ class Binary(_BaseAdapter):
         return r"'%s'::bytea" % data
 
 
-class List(_BaseAdapter):
-
-    def prepare(self, connection):
-        self._conn = connection
-
+class Boolean(_BaseAdapter):
     def getquoted(self):
-        length = len(self._wrapped)
-        if length == 0:
-            return "'{}'"
-
-        quoted = [None] * length
-        for i in xrange(length):
-            obj = self._wrapped[i]
-            quoted[i] = str(_getquoted(obj, self._conn))
-        return "ARRAY[%s]" % ", ".join(quoted)
+        return 'true' if self._wrapped else 'false'
 
 
 class DateTime(_BaseAdapter):
@@ -162,8 +95,86 @@ def Date(year, month, day):
     return DateTime(date)
 
 
+def DateFromTicks(ticks):
+    date = datetime.datetime.fromtimestamp(ticks).date()
+    return DateTime(date)
+
+
+class Decimal(_BaseAdapter):
+    def getquoted(self):
+        if self._wrapped.is_finite():
+            value = str(self._wrapped)
+
+            # Prepend a space in front of negative numbers
+            if value.startswith('-'):
+                value = ' ' + value
+            return value
+        return "'NaN'::numeric"
+
+
+class Float(ISQLQuote):
+    def getquoted(self):
+        n = float(self._wrapped)
+        if math.isnan(n):
+            return "'NaN'::float"
+        elif math.isinf(n):
+            if n > 0:
+                return "'Infinity'::float"
+            else:
+                return "'-Infinity'::float"
+        else:
+            value = repr(self._wrapped)
+
+            # Prepend a space in front of negative numbers
+            if value.startswith('-'):
+                value = ' ' + value
+            return value
+
+
+class Int(_BaseAdapter):
+    def getquoted(self):
+        value = str(self._wrapped)
+
+        # Prepend a space in front of negative numbers
+        if value.startswith('-'):
+            value = ' ' + value
+        return value
+
+
+class List(_BaseAdapter):
+
+    def prepare(self, connection):
+        self._conn = connection
+
+    def getquoted(self):
+        length = len(self._wrapped)
+        if length == 0:
+            return "'{}'"
+
+        quoted = [None] * length
+        for i in xrange(length):
+            obj = self._wrapped[i]
+            quoted[i] = str(_getquoted(obj, self._conn))
+        return "ARRAY[%s]" % ", ".join(quoted)
+
+
+class Long(_BaseAdapter):
+    def getquoted(self):
+        value = str(self._wrapped)
+
+        # Prepend a space in front of negative numbers
+        if value.startswith('-'):
+            value = ' ' + value
+        return value
+
+
 def Time(hour, minutes, seconds, tzinfo=None):
     time = datetime.time(hour, minutes, seconds, tzinfo=tzinfo)
+    return DateTime(time)
+
+
+def TimeFromTicks(ticks):
+    time = datetime.datetime.fromtimestamp(ticks).time()
     return DateTime(time)
 
 
@@ -171,16 +182,6 @@ def Timestamp(year, month, day, hour, minutes, seconds, tzinfo=None):
     dt = datetime.datetime(
         year, month, day, hour, minutes, seconds, tzinfo=tzinfo)
     return DateTime(dt)
-
-
-def DateFromTicks(ticks):
-    date = datetime.datetime.fromtimestamp(ticks).date()
-    return DateTime(date)
-
-
-def TimeFromTicks(ticks):
-    time = datetime.datetime.fromtimestamp(ticks).time()
-    return DateTime(time)
 
 
 def TimestampFromTicks(ticks):
@@ -258,7 +259,6 @@ def _getquoted(param, conn):
     return adapter.getquoted()
 
 
-
 built_in_adapters = {
     bool: Boolean,
     str: QuotedString,
@@ -269,9 +269,9 @@ built_in_adapters = {
     int: Int,
     long: Long,
     float: Float,
-    datetime.date: DateTime, # DateFromPY
+    datetime.date: Date, # DateFromPY
     datetime.datetime: DateTime, # TimestampFromPy
-    datetime.time: DateTime, # TimeFromPy
+    datetime.time: Time, # TimeFromPy
     datetime.timedelta: DateTime, # IntervalFromPy
     decimal.Decimal: Decimal,
 }
