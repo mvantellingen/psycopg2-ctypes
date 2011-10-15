@@ -67,9 +67,6 @@ def check_async(func):
     return check_async_
 
 
-
-
-
 class Connection(object):
 
     # Various exceptions which should be accessible via the Connection
@@ -669,6 +666,12 @@ class Connection(object):
         return res
 
     def _process_notice(self, arg, message):
+        """Store the given message in `self.notices`
+
+        Also delete older entries to make sure there are no more then 50
+        entries in the list.
+
+        """
         self.notices.append(message)
         length = len(self.notices)
         if length > 50:
