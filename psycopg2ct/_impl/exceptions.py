@@ -1,4 +1,3 @@
-
 class OperationError(Exception):
     pass
 
@@ -21,6 +20,7 @@ class DatabaseError(Error):
 
 class DataError(DatabaseError):
     pass
+
 
 class OperationalError(DatabaseError):
     pass
