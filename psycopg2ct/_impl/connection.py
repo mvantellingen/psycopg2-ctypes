@@ -190,9 +190,7 @@ class Connection(object):
     def _set_guc(self, name, value):
         """Set the value of a configuration parameter."""
         if value.lower() != 'default':
-            # TODO: use the string adapter here
-            value = "'%s'" % value;
-
+            value = util.quote_string(self, value)
         self._execute_command('SET %s TO %s' % (name, value))
 
     def _set_guc_onoff(self, name, value):
@@ -591,10 +589,7 @@ class Connection(object):
             libpq.PQclear(pgres)
 
     def _execute_tpc_command(self, command, xid):
-        from psycopg2ct.extensions import QuotedString
-        tid = QuotedString(str(xid))
-        tid.prepare(self)
-        cmd = '%s %s' % (command, tid)
+        cmd = '%s %s' % (command, util.quote_string(self, str(xid)))
         self._execute_command(cmd)
         self._mark += 1
 

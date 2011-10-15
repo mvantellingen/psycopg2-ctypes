@@ -569,9 +569,9 @@ class Cursor(object):
             columns_str = ''
 
         query = "COPY %s%s FROM stdin WITH DELIMITER AS %s" % (
-            table, columns_str, util.escape_string(self._connection, sep))
+            table, columns_str, util.quote_string(self._connection, sep))
         if null:
-            query += " NULL AS %s" % util.escape_string(self._connection, null)
+            query += " NULL AS %s" % util.quote_string(self._connection, null)
 
         self._copysize = size
         self._copyfile = file
@@ -596,9 +596,9 @@ class Cursor(object):
             columns_str = ''
 
         query = "COPY %s%s TO stdout WITH DELIMITER AS %s" % (
-            table, columns_str, util.escape_string(self._connection, sep))
+            table, columns_str, util.quote_string(self._connection, sep))
         if null:
-            query += " NULL AS %s" % util.escape_string(self._connection, null)
+            query += " NULL AS %s" % util.quote_string(self._connection, null)
 
         self._copyfile = file
         self._pq_execute(query)
@@ -609,7 +609,7 @@ class Cursor(object):
     def copy_expert(self, sql, file, size=8196):
         if not sql:
             return
-        
+
         if not hasattr(file, 'read') and not hasattr(file, 'write'):
             raise TypeError("file must be a readable file-like object for"
                 " COPY FROM; a writeable file-like object for COPY TO.")

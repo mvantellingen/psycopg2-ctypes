@@ -1,5 +1,6 @@
 from psycopg2ct._impl import exceptions
 from psycopg2ct._impl import libpq
+from psycopg2ct._impl.adapters import QuotedString
 
 
 def pq_set_non_blocking(pgconn, arg, raise_exception=False):
@@ -31,8 +32,7 @@ def pq_get_last_result(pgconn):
     return pgres
 
 
-def escape_string(conn, value):
-    from psycopg2ct.extensions import QuotedString
+def quote_string(conn, value):
     obj = QuotedString(value)
     obj.prepare(conn)
     return obj.getquoted()
