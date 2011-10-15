@@ -269,9 +269,9 @@ built_in_adapters = {
     int: Int,
     long: Long,
     float: Float,
-    datetime.date: Date, # DateFromPY
+    datetime.date: DateTime, # DateFromPY
     datetime.datetime: DateTime, # TimestampFromPy
-    datetime.time: Time, # TimeFromPy
+    datetime.time: DateTime, # TimeFromPy
     datetime.timedelta: DateTime, # IntervalFromPy
     decimal.Decimal: Decimal,
 }
