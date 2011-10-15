@@ -6,6 +6,7 @@ from psycopg2ct._impl import libpq
 from psycopg2ct._impl.encodings import encodings
 from psycopg2ct._impl.exceptions import ProgrammingError
 from psycopg2ct._config import PG_VERSION
+from psycopg2ct.tz import LOCAL as TZ_LOCAL
 
 
 adapters = {}
@@ -154,6 +155,37 @@ class DateTime(_BaseAdapter):
             else:
                 format = 'date'
             return "'%s'::%s" % (str(iso), format)
+
+
+def Date(year, month, day):
+    date = datetime.date(year, month, day)
+    return DateTime(date)
+
+
+def Time(hour, minutes, seconds, tzinfo=None):
+    time = datetime.time(hour, minutes, seconds, tzinfo=tzinfo)
+    return DateTime(time)
+
+
+def Timestamp(year, month, day, hour, minutes, seconds, tzinfo=None):
+    dt = datetime.datetime(
+        year, month, day, hour, minutes, seconds, tzinfo=tzinfo)
+    return DateTime(dt)
+
+
+def DateFromTicks(ticks):
+    date = datetime.datetime.fromtimestamp(ticks).date()
+    return DateTime(date)
+
+
+def TimeFromTicks(ticks):
+    time = datetime.datetime.fromtimestamp(ticks).time()
+    return DateTime(time)
+
+
+def TimestampFromTicks(ticks):
+    dt = datetime.datetime.fromtimestamp(ticks, TZ_LOCAL)
+    return DateTime(dt)
 
 
 class QuotedString(_BaseAdapter):

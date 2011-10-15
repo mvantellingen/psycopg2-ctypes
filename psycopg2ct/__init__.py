@@ -20,32 +20,6 @@ paramstyle = 'pyformat'
 threadsafety = 1
 
 
-def Date(year, month, day):
-    date = datetime.date(year, month, day)
-    return extensions.DateTime(date)
-
-def Time(hour, minutes, seconds, tzinfo=None):
-    time = datetime.time(hour, minutes, seconds, tzinfo=tzinfo)
-    return extensions.DateTime(time)
-
-def Timestamp(year, month, day, hour, minutes, seconds, tzinfo=None):
-    dt = datetime.datetime(
-        year, month, day, hour, minutes, seconds, tzinfo=tzinfo)
-    return extensions.DateTime(dt)
-
-def DateFromTicks(ticks):
-    date = datetime.datetime.fromtimestamp(ticks).date()
-    return extensions.DateTime(date)
-
-def TimeFromTicks(ticks):
-    time = datetime.datetime.fromtimestamp(ticks).time()
-    return extensions.DateTime(time)
-
-def TimestampFromTicks(ticks):
-    dt = datetime.datetime.fromtimestamp(ticks, _LOCAL)
-    return extensions.DateTime(dt)
-
-
 import psycopg2ct.extensions as _ext
 _ext.register_adapter(tuple, _ext.SQL_IN)
 _ext.register_adapter(type(None), _ext.NoneAdapter)
