@@ -793,16 +793,19 @@ class Cursor(object):
             row = self.row_factory(self)
             is_tuple = False
         else:
-            row = [None] * len(self.description)
+            row = [None] * self._nfields
             is_tuple = True
 
         # Fill it
         n = self._nfields
         for i in xrange(n):
-            if libpq.PQgetisnull(self._pgres, row_num, i):
+
+            # PQgetvalue will return an empty string for null values,
+            # so check with PQgetisnull if the value is really null
+            val = libpq.PQgetvalue(self._pgres, row_num, i)
+            if not val and libpq.PQgetisnull(self._pgres, row_num, i):
                 val = None
             else:
-                val = libpq.PQgetvalue(self._pgres, row_num, i)
                 length = libpq.PQgetlength(self._pgres, row_num, i)
                 val = typecasts.typecast(self._casts[i], val, length, self)
             row[i] = val
