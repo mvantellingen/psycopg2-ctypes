@@ -240,7 +240,7 @@ setup(
     author_email='michaelvantellingen@gmail.com',
     license='LGPL',
     url='http://github.com/mvantellingen/psycopg2-ctypes',
-    version='0.2.1',
+    version='0.3dev',
     cmdclass={
         'build_py': build_py
     },
@@ -258,5 +258,5 @@ setup(
     test_suite='psycopg2ct.tests.suite',
     description=README[0].strip(),
     long_description=''.join(README),
-    packages=['psycopg2ct', 'psycopg2ct.tests'],
+    packages=['psycopg2ct', 'psycopg2ct._impl', 'psycopg2ct.tests'],
 )
