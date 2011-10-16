@@ -39,7 +39,7 @@ def check_no_tuples(func):
 def check_async(func):
     @wraps(func)
     def check_async_(self, *args, **kwargs):
-        if self._connection._async:
+        if self._conn._async:
             raise exceptions.ProgrammingError(
                 '%s cannot be used in asynchronous mode' % func.__name__)
         return func(self, *args, **kwargs)
@@ -65,7 +65,7 @@ class Cursor(object):
 
     def __init__(self, connection, name, row_factory=None):
 
-        self._connection = connection
+        self._conn = connection
 
         #: This read/write attribute specifies the number of rows to fetch at
         #: a time with .fetchmany(). It defaults to 1 meaning to fetch a
@@ -108,7 +108,7 @@ class Cursor(object):
 
     @property
     def closed(self):
-        return self._closed or self._connection.closed
+        return self._closed or self._conn.closed
 
     @property
     def description(self):
@@ -211,18 +211,18 @@ class Cursor(object):
 
         """
         self._description = None
-        conn = self._connection
+        conn = self._conn
 
         if self._name:
             if self._query:
                 raise ProgrammingError(
                     "can't call .execute() on named cursors more than once")
-            if self._connection.autocommit:
+            if self._conn.autocommit:
                 raise ProgrammingError(
                     "can't use a named cursor outside of transactions")
 
         if isinstance(query, unicode):
-            query = query.encode(self._connection._py_enc)
+            query = query.encode(self._conn._py_enc)
 
         if parameters is not None:
             self._query = _combine_cmd_params(query, parameters, conn)
@@ -398,9 +398,9 @@ class Cursor(object):
 
         """
         if isinstance(query, unicode):
-            query = query.encode(self._connection._py_enc)
+            query = query.encode(self._conn._py_enc)
 
-        return _combine_cmd_params(query, vars, self._connection)
+        return _combine_cmd_params(query, vars, self._conn)
 
     @check_closed
     @check_async
@@ -420,9 +420,9 @@ class Cursor(object):
             columns_str = ''
 
         query = "COPY %s%s FROM stdin WITH DELIMITER AS %s" % (
-            table, columns_str, util.quote_string(self._connection, sep))
+            table, columns_str, util.quote_string(self._conn, sep))
         if null:
-            query += " NULL AS %s" % util.quote_string(self._connection, null)
+            query += " NULL AS %s" % util.quote_string(self._conn, null)
 
         self._copysize = size
         self._copyfile = file
@@ -447,9 +447,9 @@ class Cursor(object):
             columns_str = ''
 
         query = "COPY %s%s TO stdout WITH DELIMITER AS %s" % (
-            table, columns_str, util.quote_string(self._connection, sep))
+            table, columns_str, util.quote_string(self._conn, sep))
         if null:
-            query += " NULL AS %s" % util.quote_string(self._connection, null)
+            query += " NULL AS %s" % util.quote_string(self._conn, null)
 
         self._copyfile = file
         self._pq_execute(query)
@@ -532,7 +532,7 @@ class Cursor(object):
         This is an optional DB API extension.
 
         """
-        return self._connection
+        return self._conn
 
     @check_closed
     def __iter__(self):
@@ -614,7 +614,7 @@ class Cursor(object):
 
             self._rownumber = new_pos
         else:
-            if self._connection._async_cursor is not None:
+            if self._conn._async_cursor is not None:
                 raise ProgrammingError(
                     "cannot be used while an asynchronous query is underway")
 
@@ -637,12 +637,12 @@ class Cursor(object):
 
 
     def _pq_execute(self, query, async=False):
-        pgconn = self._connection._pgconn
+        pgconn = self._conn._pgconn
         if not async:
             self._pgres = libpq.PQexec(pgconn, query)
             if not self._pgres:
-                raise self._connection._create_exception(pgres=self._pgres)
-            self._connection._process_notifies()
+                raise self._conn._create_exception(pgres=self._pgres)
+            self._conn._process_notifies()
             self._pq_fetch()
         else:
             ret = libpq.PQsendQuery(pgconn, query)
@@ -650,11 +650,11 @@ class Cursor(object):
 
                 # XXX: check if this is correct, seems like a hack.
                 # but the test_async_after_async expects it.
-                if self._connection._async_cursor:
+                if self._conn._async_cursor:
                     raise ProgrammingError(
                         'cannot be used while an asynchronous query is underway')
 
-                raise self._connection._create_exception()
+                raise self._conn._create_exception()
 
             ret = libpq.PQflush(pgconn)
             if ret == 0:
@@ -664,8 +664,8 @@ class Cursor(object):
             else:
                 raise ValueError()  # XXX
 
-            self._connection._async_status = async_status
-            self._connection._async_cursor = weakref.ref(self)
+            self._conn._async_status = async_status
+            self._conn._async_cursor = weakref.ref(self)
 
     def _pq_fetch(self):
         pgstatus = libpq.PQresultStatus(self._pgres)
@@ -734,16 +734,16 @@ class Cursor(object):
             raise ProgrammingError("can't execute an empty query")
 
         else:
-            raise self._connection._create_exception(pgres=self._pgres)
+            raise self._conn._create_exception(pgres=self._pgres)
 
     def _pq_fetch_copy_in(self):
-        pgconn = self._connection._pgconn
+        pgconn = self._conn._pgconn
         size = self._copysize
         error = 0
         while True:
             data = self._copyfile.read(size)
             if isinstance(self._copyfile, TextIOBase):
-                data = data.encode(self._connection._py_enc)
+                data = data.encode(self._conn._py_enc)
 
             if not data:
                 break
@@ -763,7 +763,7 @@ class Cursor(object):
 
     def _pq_fetch_copy_out(self):
         is_text = isinstance(self._copyfile, TextIOBase)
-        pgconn = self._connection._pgconn
+        pgconn = self._conn._pgconn
         while True:
             buf = libpq.pointer(libpq.c_char_p())
             length = libpq.PQgetCopyData(pgconn, buf, 0)
@@ -779,7 +779,7 @@ class Cursor(object):
 
                 self._copyfile.write(value)
             elif length == -2:
-                raise self._connection._create_exception()
+                raise self._conn._create_exception()
             else:
                 break
 
@@ -819,7 +819,7 @@ class Cursor(object):
             return self._typecasts[oid]
         except KeyError:
             try:
-                return self._connection._typecasts[oid]
+                return self._conn._typecasts[oid]
             except KeyError:
                 try:
                     return typecasts.string_types[oid]

@@ -159,7 +159,7 @@ class parse_array(object):
 
 
 def parse_unicode(value, length, cursor):
-    return value.decode(cursor._connection._py_enc)
+    return value.decode(cursor._conn._py_enc)
 
 
 def _parse_date(value):
