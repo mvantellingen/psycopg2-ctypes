@@ -530,7 +530,8 @@ class Connection(object):
 
             # If the current datestyle is not compatible (not ISO) then
             # force it to ISO
-            if not util.validate_datestyle(self._pgconn):
+            datestyle = libpq.PQparameterStatus(self._pgconn, 'DateStyle')
+            if not datestyle or not datestyle.startswith('ISO'):
                 self.status = consts.STATUS_DATESTYLE
 
                 if libpq.PQsendQuery(self._pgconn, "SET DATESTYLE TO 'ISO'"):

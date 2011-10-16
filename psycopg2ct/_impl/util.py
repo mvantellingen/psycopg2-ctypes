@@ -38,16 +38,6 @@ def quote_string(conn, value):
     return obj.getquoted()
 
 
-def validate_datestyle(pgconn):
-    """Validates if the datestyle is an ISO format"""
-    datestyle = libpq.PQparameterStatus(pgconn, 'DateStyle')
-
-    # pgbouncer does not pass on DateStyle
-    if datestyle is None:
-        return False
-    return datestyle.startswith('ISO')
-
-
 def get_exception_for_sqlstate(code):
     """Translate the sqlstate to a relevant exception.
 
