@@ -1,3 +1,4 @@
+import threading
 import weakref
 from functools import wraps
 
@@ -95,6 +96,7 @@ class Connection(object):
         self._autocommit = False
         self._pgconn = None
         self._equote = False
+        self._lock = threading.RLock()
         self.notices = []
 
         # The number of commits/rollbacks done so far
@@ -165,24 +167,24 @@ class Connection(object):
     @check_closed
     @check_async
     def reset(self):
-        self._execute_command(
-            "ABORT; RESET ALL; SET SESSION AUTHORIZATION DEFAULT;")
-        self.status = consts.STATUS_READY
-        self._mark += 1
-        self._autocommit = False
-        self._tpc_xid = None
+        with self._lock:
+            self._execute_command(
+                "ABORT; RESET ALL; SET SESSION AUTHORIZATION DEFAULT;")
+            self.status = consts.STATUS_READY
+            self._mark += 1
+            self._autocommit = False
+            self._tpc_xid = None
 
     def _get_guc(self, name):
         """Return the value of a configuration parameter."""
-        pgres = libpq.PQexec(self._pgconn, 'SHOW %s' % name)
-        if not pgres or libpq.PQresultStatus(pgres) != libpq.PGRES_TUPLES_OK:
-            raise exceptions.OperationalError(
-                "can't fetch %s" % name)
+        with self._lock:
+            pgres = libpq.PQexec(self._pgconn, 'SHOW %s' % name)
+            if not pgres or libpq.PQresultStatus(pgres) != libpq.PGRES_TUPLES_OK:
+                raise exceptions.OperationalError("can't fetch %s" % name)
 
-        rv = libpq.PQgetvalue(pgres, 0, 0)
-        libpq.PQclear(pgres)
-
-        return rv
+            rv = libpq.PQgetvalue(pgres, 0, 0)
+            libpq.PQclear(pgres)
+            return rv
 
     def _set_guc(self, name, value):
         """Set the value of a configuration parameter."""
@@ -199,7 +201,6 @@ class Connection(object):
             value = 'default'
         else:
             value = value and 'on' or 'off'
-
         self._set_guc(name, value)
 
     @property
@@ -302,7 +303,6 @@ class Connection(object):
     @check_tpc
     def cancel(self):
         errbuf = libpq.create_string_buffer(256)
-
         if libpq.PQcancel(self._cancel, errbuf, len(errbuf)) == 0:
             raise self._create_exception(msg=errbuf)
 
@@ -567,8 +567,15 @@ class Connection(object):
         if self._cancel is None:
             raise exceptions.OperationalError("can't get cancellation key")
 
-        self._closed = False
-        self.status = consts.STATUS_READY
+        with self._lock:
+            # If the current datestyle is not compatible (not ISO) then
+            # force it to ISO
+            datestyle = libpq.PQparameterStatus(self._pgconn, 'DateStyle')
+            if not datestyle or not datestyle.startswith('ISO'):
+                self.status = consts.STATUS_DATESTYLE
+                self._set_guc('datestyle', 'ISO')
+
+            self._closed = False
 
     def _begin_transaction(self):
         if self.status == consts.STATUS_READY and not self._autocommit:
@@ -576,15 +583,16 @@ class Connection(object):
             self.status = consts.STATUS_BEGIN
 
     def _execute_command(self, command):
-        pgres = libpq.PQexec(self._pgconn, command)
-        if not pgres:
-            raise self._create_exception()
-        try:
-            pgstatus = libpq.PQresultStatus(pgres)
-            if pgstatus != libpq.PGRES_COMMAND_OK:
-                raise self._create_exception(pgres=pgres)
-        finally:
-            libpq.PQclear(pgres)
+        with self._lock:
+            pgres = libpq.PQexec(self._pgconn, command)
+            if not pgres:
+                raise self._create_exception()
+            try:
+                pgstatus = libpq.PQresultStatus(pgres)
+                if pgstatus != libpq.PGRES_COMMAND_OK:
+                    raise self._create_exception(pgres=pgres)
+            finally:
+                libpq.PQclear(pgres)
 
     def _execute_tpc_command(self, command, xid):
         cmd = '%s %s' % (command, util.quote_string(self, str(xid)))
@@ -634,11 +642,13 @@ class Connection(object):
     def _commit(self):
         if self._autocommit or self.status != consts.STATUS_BEGIN:
             return
-        self._mark += 1
-        try:
-            self._execute_command('COMMIT')
-        finally:
-            self.status = consts.STATUS_READY
+
+        with self._lock:
+            self._mark += 1
+            try:
+                self._execute_command('COMMIT')
+            finally:
+                self.status = consts.STATUS_READY
 
     def _rollback(self):
         if self._autocommit or self.status != consts.STATUS_BEGIN:
@@ -659,12 +669,13 @@ class Connection(object):
         return ret and ret == 'off'
 
     def _is_busy(self):
-        if libpq.PQconsumeInput(self._pgconn) == 0:
-            raise exceptions.OperationalError(
-                libpq.PQerrorMessage(self._pgconn))
-        res = libpq.PQisBusy(self._pgconn)
-        self._process_notifies()
-        return res
+        with self._lock:
+            if libpq.PQconsumeInput(self._pgconn) == 0:
+                raise exceptions.OperationalError(
+                    libpq.PQerrorMessage(self._pgconn))
+            res = libpq.PQisBusy(self._pgconn)
+            self._process_notifies()
+            return res
 
     def _process_notice(self, arg, message):
         """Store the given message in `self.notices`

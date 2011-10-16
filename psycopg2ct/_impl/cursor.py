@@ -639,30 +639,32 @@ class Cursor(object):
     def _pq_execute(self, query, async=False):
         pgconn = self._conn._pgconn
         if not async:
-            self._pgres = libpq.PQexec(pgconn, query)
-            if not self._pgres:
-                raise self._conn._create_exception(pgres=self._pgres)
-            self._conn._process_notifies()
+            with self._conn._lock:
+                self._pgres = libpq.PQexec(pgconn, query)
+                if not self._pgres:
+                    raise self._conn._create_exception(pgres=self._pgres)
+                self._conn._process_notifies()
             self._pq_fetch()
         else:
-            ret = libpq.PQsendQuery(pgconn, query)
-            if not ret:
+            with self._conn._lock:
+                ret = libpq.PQsendQuery(pgconn, query)
+                if not ret:
 
-                # XXX: check if this is correct, seems like a hack.
-                # but the test_async_after_async expects it.
-                if self._conn._async_cursor:
-                    raise ProgrammingError(
-                        'cannot be used while an asynchronous query is underway')
+                    # XXX: check if this is correct, seems like a hack.
+                    # but the test_async_after_async expects it.
+                    if self._conn._async_cursor:
+                        raise ProgrammingError(
+                            'cannot be used while an asynchronous query is underway')
 
-                raise self._conn._create_exception()
+                    raise self._conn._create_exception()
 
-            ret = libpq.PQflush(pgconn)
-            if ret == 0:
-                async_status = consts.ASYNC_READ
-            elif ret == 1:
-                async_status = consts.ASYNC_WRITE
-            else:
-                raise ValueError()  # XXX
+                ret = libpq.PQflush(pgconn)
+                if ret == 0:
+                    async_status = consts.ASYNC_READ
+                elif ret == 1:
+                    async_status = consts.ASYNC_WRITE
+                else:
+                    raise ValueError()  # XXX
 
             self._conn._async_status = async_status
             self._conn._async_cursor = weakref.ref(self)
@@ -685,8 +687,24 @@ class Cursor(object):
 
         elif pgstatus == libpq.PGRES_TUPLES_OK:
             self._rowcount = libpq.PQntuples(self._pgres)
-            self._no_tuples = False
+            return self._pq_fetch_tuples()
+
+        elif pgstatus == libpq.PGRES_COPY_IN:
+            return self._pq_fetch_copy_in()
+
+        elif pgstatus == libpq.PGRES_COPY_OUT:
+            return self._pq_fetch_copy_out()
+
+        elif pgstatus == libpq.PGRES_EMPTY_QUERY:
+            raise ProgrammingError("can't execute an empty query")
+
+        else:
+            raise self._conn._create_exception(pgres=self._pgres)
+
+    def _pq_fetch_tuples(self):
+        with self._conn._lock:
             self._nfields = libpq.PQnfields(self._pgres)
+            self._no_tuples = False
             description = []
             casts = []
             for i in xrange(self._nfields):
@@ -723,18 +741,6 @@ class Cursor(object):
 
             self._description = tuple(description)
             self._casts = casts
-
-        elif pgstatus == libpq.PGRES_COPY_IN:
-            return self._pq_fetch_copy_in()
-
-        elif pgstatus == libpq.PGRES_COPY_OUT:
-            return self._pq_fetch_copy_out()
-
-        elif pgstatus == libpq.PGRES_EMPTY_QUERY:
-            raise ProgrammingError("can't execute an empty query")
-
-        else:
-            raise self._conn._create_exception(pgres=self._pgres)
 
     def _pq_fetch_copy_in(self):
         pgconn = self._conn._pgconn
