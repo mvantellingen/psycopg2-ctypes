@@ -240,7 +240,7 @@ setup(
     author_email='michaelvantellingen@gmail.com',
     license='LGPL',
     url='http://github.com/mvantellingen/psycopg2-ctypes',
-    version='0.3dev',
+    version='0.3',
     cmdclass={
         'build_py': build_py
     },
@@ -248,6 +248,7 @@ setup(
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: GNU Library or Lesser General Public License (LGPL)',
         'Intended Audience :: Developers',
+        'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: SQL',
         'Topic :: Database',
