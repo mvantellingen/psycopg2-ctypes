@@ -28,6 +28,8 @@ for k, v in _isolevels.items():
 
 del k, v
 
+_green_callback = None
+
 
 def check_closed(func):
     @wraps(func)
@@ -178,10 +180,15 @@ class Connection(object):
     def _get_guc(self, name):
         """Return the value of a configuration parameter."""
         with self._lock:
-            pgres = libpq.PQexec(self._pgconn, 'SHOW %s' % name)
+            query = 'SHOW %s' % name
+
+            if _green_callback:
+                pgres = self._execute_green(query)
+            else:
+                pgres = libpq.PQexec(self._pgconn, query)
+
             if not pgres or libpq.PQresultStatus(pgres) != libpq.PGRES_TUPLES_OK:
                 raise exceptions.OperationalError("can't fetch %s" % name)
-
             rv = libpq.PQgetvalue(pgres, 0, 0)
             libpq.PQclear(pgres)
             return rv
@@ -457,7 +464,7 @@ class Connection(object):
         if res is None:
             return consts.POLL_ERROR
         elif res == consts.POLL_ERROR:
-            raise exceptions.OperationalError("asynchronous connection failed")
+            raise self._create_exception()
         return res
 
     def _poll_query(self):
@@ -584,7 +591,11 @@ class Connection(object):
 
     def _execute_command(self, command):
         with self._lock:
-            pgres = libpq.PQexec(self._pgconn, command)
+            if _green_callback:
+                pgres = self._execute_green(command)
+            else:
+                pgres = libpq.PQexec(self._pgconn, command)
+
             if not pgres:
                 raise self._create_exception()
             try:
@@ -598,6 +609,30 @@ class Connection(object):
         cmd = '%s %s' % (command, util.quote_string(self, str(xid)))
         self._execute_command(cmd)
         self._mark += 1
+
+    def _execute_green(self, query):
+        """Execute version for green threads"""
+        if self._async_cursor:
+            raise exceptions.ProgrammingError(
+                "a single async query can be executed on the same connection")
+
+        self._async_cursor = True
+
+        if not libpq.PQsendQuery(self._pgconn, query):
+            self._async_cursor = None
+            return
+
+        self._async_status = consts.ASYNC_WRITE
+
+        try:
+            _green_callback(self)
+            return util.pq_get_last_result(self._pgconn)
+        except:
+            util.pq_clear_async(self._pgconn)
+            raise
+        finally:
+            self._async_cursor = None
+            self._async_status = consts.ASYNC_DONE
 
     def _finish_tpc(self, command, fallback, xid):
         if xid:
@@ -724,6 +759,9 @@ class Connection(object):
         if not exc_type:
             exc_type = exceptions.OperationalError
         return exc_type(msg)
+
+    def _have_wait_callback(self):
+        return bool(_green_callback)
 
 
 def connect(dsn=None, database=None, host=None, port=None, user=None,

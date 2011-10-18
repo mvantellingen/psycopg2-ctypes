@@ -12,6 +12,7 @@ This module holds all the extensions to the DBAPI-2.0 provided by psycopg.
 """
 import sys as _sys
 
+from psycopg2ct._impl import connection as _connection
 from psycopg2ct._impl.adapters import adapt, adapters
 from psycopg2ct._impl.adapters import Binary, Boolean, Int, Float
 from psycopg2ct._impl.adapters import QuotedString, AsIs, ISQLQuote
@@ -82,6 +83,14 @@ class NoneAdapter(object):
 
     def getquoted(self, _null=b("NULL")):
         return _null
+
+
+def set_wait_callback(f):
+    _connection._green_callback = f
+
+
+def get_wait_callback():
+    return _connection._green_callback
 
 
 __all__ = filter(lambda k: not k.startswith('_'), locals().keys())

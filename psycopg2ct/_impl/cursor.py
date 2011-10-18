@@ -640,7 +640,10 @@ class Cursor(object):
         pgconn = self._conn._pgconn
         if not async:
             with self._conn._lock:
-                self._pgres = libpq.PQexec(pgconn, query)
+                if not self._conn._have_wait_callback():
+                    self._pgres = libpq.PQexec(pgconn, query)
+                else:
+                    self._pgres = self._conn._execute_green(query)
                 if not self._pgres:
                     raise self._conn._create_exception(pgres=self._pgres)
                 self._conn._process_notifies()

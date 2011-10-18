@@ -19,7 +19,10 @@ def pq_clear_async(pgconn):
 
 
 def pq_get_last_result(pgconn):
-    pgres = pgres_next = None
+    pgres_next = None
+    pgres = libpq.PQgetResult(pgconn)
+    if not pgres:
+        return
 
     while True:
         pgres_next = libpq.PQgetResult(pgconn)
@@ -29,6 +32,7 @@ def pq_get_last_result(pgconn):
         if pgres:
             libpq.PQclear(pgres)
         pgres = pgres_next
+
     return pgres
 
 
