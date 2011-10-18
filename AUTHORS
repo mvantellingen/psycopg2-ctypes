@@ -1,4 +1,5 @@
 Michael van Tellingen <michaelvantellingen at gmail.com>
+Daniele Varrazzo
 
 Based on the rpython psycopg2 module by:
  - Alex Gaynor <alex.gaynor at gmail.com>
