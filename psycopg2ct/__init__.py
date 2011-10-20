@@ -13,12 +13,7 @@ from psycopg2ct._impl.typecasts import BINARY, DATETIME, NUMBER, ROWID, STRING
 __version__ = '2.4'
 apilevel = '2.0'
 paramstyle = 'pyformat'
-
-# TODO: psycopg2 thread safety is 2. I haven't reviewed it in the -ct
-# but the lack of the word "lock" in the cursor module makes me assume
-# it's not  -- piro
-threadsafety = 1
-
+threadsafety = 2
 
 import psycopg2ct.extensions as _ext
 _ext.register_adapter(tuple, _ext.SQL_IN)
