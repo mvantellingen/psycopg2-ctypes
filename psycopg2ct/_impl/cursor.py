@@ -404,7 +404,7 @@ class Cursor(object):
 
     @check_closed
     @check_async
-    def copy_from(self, file, table, sep='\t', null='\N', size=8192,
+    def copy_from(self, file, table, sep='\t', null='\\N', size=8192,
                   columns=None):
         """Reads data from a file-like object appending them to a database
         table (COPY table FROM file syntax).
@@ -419,20 +419,22 @@ class Cursor(object):
         else:
             columns_str = ''
 
-        query = "COPY %s%s FROM stdin WITH DELIMITER AS %s" % (
-            table, columns_str, util.quote_string(self._conn, sep))
-        if null:
-            query += " NULL AS %s" % util.quote_string(self._conn, null)
+        query = "COPY %s%s FROM stdin WITH DELIMITER AS %s NULL AS %s" % (
+            table, columns_str,
+            util.quote_string(self._conn, sep),
+            util.quote_string(self._conn, null))
 
         self._copysize = size
         self._copyfile = file
-        self._pq_execute(query)
-        self._copyfile = None
-        self._copysize = None
+        try:
+            self._pq_execute(query)
+        finally:
+            self._copyfile = None
+            self._copysize = None
 
     @check_closed
     @check_async
-    def copy_to(self, file, table, sep='\t', null='\N', columns=None):
+    def copy_to(self, file, table, sep='\t', null='\\N', columns=None):
         """Writes the content of a table to a file-like object (COPY table
         TO file syntax).
 
@@ -446,18 +448,20 @@ class Cursor(object):
         else:
             columns_str = ''
 
-        query = "COPY %s%s TO stdout WITH DELIMITER AS %s" % (
-            table, columns_str, util.quote_string(self._conn, sep))
-        if null:
-            query += " NULL AS %s" % util.quote_string(self._conn, null)
+        query = "COPY %s%s TO stdout WITH DELIMITER AS %s NULL AS %s" % (
+            table, columns_str,
+            util.quote_string(self._conn, sep),
+            util.quote_string(self._conn, null))
 
         self._copyfile = file
-        self._pq_execute(query)
-        self._copyfile = None
+        try:
+            self._pq_execute(query)
+        finally:
+            self._copyfile = None
 
     @check_closed
     @check_async
-    def copy_expert(self, sql, file, size=8196):
+    def copy_expert(self, sql, file, size=8192):
         if not sql:
             return
 
@@ -466,8 +470,10 @@ class Cursor(object):
                 " COPY FROM; a writeable file-like object for COPY TO.")
 
         self._copyfile = file
-        self._pq_execute(sql)
-        self._copyfile = None
+        try:
+            self._pq_execute(sql)
+        finally:
+            self._copyfile = None
 
     @check_closed
     def setinputsizes(self, sizes):
