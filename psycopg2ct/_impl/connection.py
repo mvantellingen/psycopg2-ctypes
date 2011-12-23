@@ -441,8 +441,10 @@ class Connection(object):
                 libpq.PQclear(curs._pgres)
 
                 curs._pgres = util.pq_get_last_result(self._pgconn)
-                curs._pq_fetch()
-                self._async_cursor = None
+                try:
+                    curs._pq_fetch()
+                finally:
+                    self._async_cursor = None
             return res
 
         return consts.POLL_ERROR
