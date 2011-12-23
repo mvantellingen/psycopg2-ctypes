@@ -764,27 +764,9 @@ class Connection(object):
         return bool(_green_callback)
 
 
-def connect(dsn=None, database=None, host=None, port=None, user=None,
-            password=None, async=False, connection_factory=Connection):
-
-    if dsn is None:
-        args = []
-        if database is not None:
-            args.append('dbname=%s' % database)
-        if host is not None:
-            args.append('host=%s' % host)
-        if port is not None:
-            if isinstance(port, str):
-                port = int(port)
-
-            if not isinstance(port, int):
-                raise TypeError('port must be a string or int')
-            args.append('port=%d' % port)
-        if user is not None:
-            args.append('user=%s' % user)
-        if password is not None:
-            args.append('password=%s' % password)
-        dsn = ' '.join(args)
+def _connect(dsn, connection_factory=None, async=False):
+    if connection_factory is None:
+        connection_factory = Connection
 
     # Mimic the construction method as used by psycopg2, which notes:
     # Here we are breaking the connection.__init__ interface defined
@@ -792,5 +774,6 @@ def connect(dsn=None, database=None, host=None, port=None, user=None,
     # the async parameter.
     if async:
         return connection_factory(dsn, async=True)
-    return connection_factory(dsn)
+    else:
+        return connection_factory(dsn)
 
