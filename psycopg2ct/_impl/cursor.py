@@ -84,7 +84,6 @@ class Cursor(object):
 
         self.tzinfo_factory = tz.FixedOffsetTimezone
         self.row_factory = row_factory
-        self.itersize = 2000
 
         self._closed = False
         self._description = None
