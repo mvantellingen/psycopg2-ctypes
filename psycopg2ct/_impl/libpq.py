@@ -175,7 +175,7 @@ PQftype.restype = c_uint
 
 PQfsize = libpq.PQfsize
 PQfsize.argtypes = [PGresult_p, c_int]
-PQftype.restype = c_int
+PQfsize.restype = c_int
 
 PQfmod = libpq.PQfmod
 PQfmod.argtypes = [PGresult_p, c_int]
