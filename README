@@ -1,4 +1,4 @@
-An (experimental) implementation of the psycopg2 module using ctypes.
+An implementation of the psycopg2 module using ctypes.
 The module is currently compatible with Psycopg 2.4.4.
 
 To use this package with Django or SQLAlchemy create a psycopg2.py file
