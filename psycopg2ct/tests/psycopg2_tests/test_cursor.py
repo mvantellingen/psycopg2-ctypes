@@ -160,6 +160,7 @@ class CursorTests(unittest.TestCase):
         curs = self.conn.cursor()
         w = ref(curs)
         del curs
+        import gc; gc.collect()
         self.assert_(w() is None)
 
     def test_invalid_name(self):
