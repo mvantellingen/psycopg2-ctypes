@@ -742,15 +742,15 @@ class Connection(object):
 
     def _create_exception(self, pgres=None, msg=None):
         """Return the exception to be raise'd"""
+        exc_type = None
         if not pgres:
             if not msg:
                 msg = libpq.PQerrorMessage(self._pgconn)
-            return exceptions.OperationalError(msg)
+            exc_type = exceptions.OperationalError
 
         if msg is None:
             msg = libpq.PQresultErrorMessage(pgres)
 
-        exc_type = None
         if msg is not None:
             code = libpq.PQresultErrorField(pgres, libpq.PG_DIAG_SQLSTATE)
             if code is not None:
@@ -760,6 +760,10 @@ class Connection(object):
 
         if not exc_type:
             exc_type = exceptions.OperationalError
+
+        # Clear the connection if the status is CONNECTION_BAD (fatal error)
+        if self._pgconn and libpq.PQstatus(self._pgconn) == libpq.CONNECTION_BAD:
+            self._close()
         return exc_type(msg)
 
     def _have_wait_callback(self):

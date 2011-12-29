@@ -640,9 +640,14 @@ class Cursor(object):
             libpq.PQclear(self._pgres)
             self._pgres = None
 
-
     def _pq_execute(self, query, async=False):
+        """Execute the query"""
         pgconn = self._conn._pgconn
+
+        # Check the status of the connection
+        if libpq.PQstatus(pgconn) != libpq.CONNECTION_OK:
+            raise self._conn._create_exception()
+
         if not async:
             with self._conn._lock:
                 if not self._conn._have_wait_callback():
