@@ -667,8 +667,9 @@ class Connection(object):
     def _close(self):
         self._closed = True
 
-        #if self._cancel:
-        #    libpq.PQfreeCancel(self._cancel)
+        if self._cancel:
+            libpq.PQfreeCancel(self._cancel)
+            self._cancel = None
 
         if self._pgconn:
             libpq.PQfinish(self._pgconn)
