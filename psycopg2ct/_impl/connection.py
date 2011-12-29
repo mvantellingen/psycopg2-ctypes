@@ -675,8 +675,6 @@ class Connection(object):
             libpq.PQfinish(self._pgconn)
             self._pgconn = None
 
-        self.notices = []
-
     def _commit(self):
         if self._autocommit or self.status != consts.STATUS_BEGIN:
             return
