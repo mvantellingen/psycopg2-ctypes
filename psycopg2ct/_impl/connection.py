@@ -741,25 +741,25 @@ class Connection(object):
             libpq.PQfreemem(pg_notify)
 
     def _create_exception(self, pgres=None, msg=None):
-        """Return the exception to be raise'd"""
-        exc_type = None
-        if not pgres:
-            if not msg:
-                msg = libpq.PQerrorMessage(self._pgconn)
-            exc_type = exceptions.OperationalError
+        """Return the appropriate exception instance for the current status.
 
+        """
+        exc_type = exceptions.OperationalError
+
+        # If no custom message is passed then get the message from postgres.
+        # If pgres is available then we first try to get the message for the
+        # last command, and then the error message for the connection
         if msg is None:
-            msg = libpq.PQresultErrorMessage(pgres)
+            if pgres:
+                msg = libpq.PQresultErrorMessage(pgres)
+            if msg is None:
+                msg = libpq.PQerrorMessage(self._pgconn)
 
-        if msg is not None:
+        # Get the correct exception class based on the error code
+        if pgres:
             code = libpq.PQresultErrorField(pgres, libpq.PG_DIAG_SQLSTATE)
             if code is not None:
                 exc_type = util.get_exception_for_sqlstate(code)
-        else:
-            msg = libpq.PQerrorMessage(self._pgconn)
-
-        if not exc_type:
-            exc_type = exceptions.OperationalError
 
         # Clear the connection if the status is CONNECTION_BAD (fatal error)
         if self._pgconn and libpq.PQstatus(self._pgconn) == libpq.CONNECTION_BAD:
