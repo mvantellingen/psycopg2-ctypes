@@ -60,6 +60,13 @@ class ConnectionTests(unittest.TestCase):
         conn.close()
         self.assertEqual(curs.closed, True)
 
+    def test_unexpected_close(self):
+        conn = self.conn
+        cur = conn.cursor()
+        self.assertRaises(psycopg2.DatabaseError,
+            lambda: cur.execute('SELECT pg_terminate_backend(pg_backend_pid())'))
+        self.assertEqual(cur.closed, True)
+
     def test_reset(self):
         conn = self.conn
         # switch isolation level, then reset
