@@ -1,6 +1,8 @@
 """ctypes interface to the libpq library"""
 from ctypes import *
+
 from psycopg2ct._config import PG_LIBRARY, PG_VERSION
+
 
 if not PG_LIBRARY:
     raise RuntimeError('libpq not found!')
@@ -17,6 +19,7 @@ class PGresult(Structure):
     _fields_ = []
 
 PGresult_p = POINTER(PGresult)
+
 
 class PGcancel(Structure):
     _fields_ = []

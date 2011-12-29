@@ -658,6 +658,7 @@ class Cursor(object):
                     raise self._conn._create_exception(pgres=self._pgres)
                 self._conn._process_notifies()
             self._pq_fetch()
+
         else:
             with self._conn._lock:
                 ret = libpq.PQsendQuery(pgconn, query)
