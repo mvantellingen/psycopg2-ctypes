@@ -166,29 +166,36 @@ def _parse_date(value):
     return datetime.date(*[int(x) for x in value.split('-')])
 
 
-def _parse_time(time, cursor):
-    microsecond = 0
-    hour, minute, second = time.split(":", 2)
+def _parse_time(value, cursor):
+    """Parse the time to a datetime.time type.
 
-    tzinfo = None
+    The given value is in the format of `16:28:09.506488+01`
+
+    """
+    microsecond = 0
+    hour, minute, second = value.split(':', 2)
+
     sign = 0
+    tzinfo = None
     timezone = None
-    if "-" in second:
+    if '-' in second:
         sign = -1
-        second, timezone = second.split("-")
-    elif "+" in second:
+        second, timezone = second.split('-')
+    elif '+' in second:
         sign = 1
-        second, timezone = second.split("+")
+        second, timezone = second.split('+')
+
     if not cursor.tzinfo_factory is None and sign:
-        parts = timezone.split(":")
+        parts = timezone.split(':')
         tz_min = sign * 60 * int(parts[0])
         if len(parts) > 1:
             tz_min += int(parts[1])
         if len(parts) > 2:
-            tz_min += int(int(parts[2]) / 60.)
+            tz_min += int(int(parts[2]) / 60.0)
         tzinfo = cursor.tzinfo_factory(tz_min)
-    if "." in second:
-        second, microsecond = second.split(".")
+
+    if '.' in second:
+        second, microsecond = second.split('.')
         microsecond = int(microsecond) * int(math.pow(10.0, 6.0 - len(microsecond)))
 
     return datetime.time(int(hour), int(minute), int(second), microsecond,
