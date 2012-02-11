@@ -441,8 +441,10 @@ class Connection(object):
                 libpq.PQclear(curs._pgres)
 
                 curs._pgres = util.pq_get_last_result(self._pgconn)
-                curs._pq_fetch()
-                self._async_cursor = None
+                try:
+                    curs._pq_fetch()
+                finally:
+                    self._async_cursor = None
             return res
 
         return consts.POLL_ERROR
@@ -665,14 +667,13 @@ class Connection(object):
     def _close(self):
         self._closed = True
 
-        #if self._cancel:
-        #    libpq.PQfreeCancel(self._cancel)
+        if self._cancel:
+            libpq.PQfreeCancel(self._cancel)
+            self._cancel = None
 
         if self._pgconn:
             libpq.PQfinish(self._pgconn)
             self._pgconn = None
-
-        self.notices = []
 
     def _commit(self):
         if self._autocommit or self.status != consts.STATUS_BEGIN:
@@ -739,52 +740,38 @@ class Connection(object):
             libpq.PQfreemem(pg_notify)
 
     def _create_exception(self, pgres=None, msg=None):
-        """Return the exception to be raise'd"""
-        if not pgres:
-            if not msg:
-                msg = libpq.PQerrorMessage(self._pgconn)
-            return exceptions.OperationalError(msg)
+        """Return the appropriate exception instance for the current status.
 
+        """
+        exc_type = exceptions.OperationalError
+
+        # If no custom message is passed then get the message from postgres.
+        # If pgres is available then we first try to get the message for the
+        # last command, and then the error message for the connection
         if msg is None:
-            msg = libpq.PQresultErrorMessage(pgres)
+            if pgres:
+                msg = libpq.PQresultErrorMessage(pgres)
+            if msg is None:
+                msg = libpq.PQerrorMessage(self._pgconn)
 
-        exc_type = None
-        if msg is not None:
+        # Get the correct exception class based on the error code
+        if pgres:
             code = libpq.PQresultErrorField(pgres, libpq.PG_DIAG_SQLSTATE)
             if code is not None:
                 exc_type = util.get_exception_for_sqlstate(code)
-        else:
-            msg = libpq.PQerrorMessage(self._pgconn)
 
-        if not exc_type:
-            exc_type = exceptions.OperationalError
+        # Clear the connection if the status is CONNECTION_BAD (fatal error)
+        if self._pgconn and libpq.PQstatus(self._pgconn) == libpq.CONNECTION_BAD:
+            self._close()
         return exc_type(msg)
 
     def _have_wait_callback(self):
         return bool(_green_callback)
 
 
-def connect(dsn=None, database=None, host=None, port=None, user=None,
-            password=None, async=False, connection_factory=Connection):
-
-    if dsn is None:
-        args = []
-        if database is not None:
-            args.append('dbname=%s' % database)
-        if host is not None:
-            args.append('host=%s' % host)
-        if port is not None:
-            if isinstance(port, str):
-                port = int(port)
-
-            if not isinstance(port, int):
-                raise TypeError('port must be a string or int')
-            args.append('port=%d' % port)
-        if user is not None:
-            args.append('user=%s' % user)
-        if password is not None:
-            args.append('password=%s' % password)
-        dsn = ' '.join(args)
+def _connect(dsn, connection_factory=None, async=False):
+    if connection_factory is None:
+        connection_factory = Connection
 
     # Mimic the construction method as used by psycopg2, which notes:
     # Here we are breaking the connection.__init__ interface defined
@@ -792,5 +779,6 @@ def connect(dsn=None, database=None, host=None, port=None, user=None,
     # the async parameter.
     if async:
         return connection_factory(dsn, async=True)
-    return connection_factory(dsn)
+    else:
+        return connection_factory(dsn)
 

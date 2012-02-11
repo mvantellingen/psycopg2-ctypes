@@ -60,6 +60,13 @@ class ConnectionTests(unittest.TestCase):
         conn.close()
         self.assertEqual(curs.closed, True)
 
+    def test_unexpected_close(self):
+        conn = self.conn
+        cur = conn.cursor()
+        self.assertRaises(psycopg2.DatabaseError,
+            lambda: cur.execute('SELECT pg_terminate_backend(pg_backend_pid())'))
+        self.assertEqual(cur.closed, True)
+
     def test_reset(self):
         conn = self.conn
         # switch isolation level, then reset
@@ -158,10 +165,12 @@ class ConnectionTests(unittest.TestCase):
 
     def test_weakref(self):
         from weakref import ref
+        import gc
         conn = psycopg2.connect(dsn)
         w = ref(conn)
         conn.close()
         del conn
+        gc.collect()
         self.assert_(w() is None)
 
 
@@ -343,6 +352,16 @@ class IsolationLevelsTestCase(unittest.TestCase):
 
         cur2.execute("select count(*) from isolevel;")
         self.assertEqual(2, cur2.fetchone()[0])
+
+    def test_isolation_level_closed(self):
+        cnn = self.connect()
+        cnn.close()
+        self.assertRaises(psycopg2.InterfaceError, getattr,
+            cnn, 'isolation_level')
+        self.assertRaises(psycopg2.InterfaceError,
+            cnn.set_isolation_level, 0)
+        self.assertRaises(psycopg2.InterfaceError,
+            cnn.set_isolation_level, 1)
 
 
 class ConnectionTwoPhaseTests(unittest.TestCase):
@@ -725,6 +744,12 @@ class TransactionControlTests(unittest.TestCase):
         if not self.conn.closed:
             self.conn.close()
 
+    def test_closed(self):
+        self.conn.close()
+        self.assertRaises(psycopg2.InterfaceError,
+            self.conn.set_session,
+            psycopg2.extensions.ISOLATION_LEVEL_SERIALIZABLE)
+
     def test_not_in_transaction(self):
         cur = self.conn.cursor()
         cur.execute("select 1")
@@ -867,6 +892,19 @@ class AutocommitTests(unittest.TestCase):
     def tearDown(self):
         if not self.conn.closed:
             self.conn.close()
+
+    def test_closed(self):
+        self.conn.close()
+        self.assertRaises(psycopg2.InterfaceError,
+            setattr, self.conn, 'autocommit', True)
+
+        # The getter doesn't have a guard. We may change this in future
+        # to make it consistent with other methods; meanwhile let's just check
+        # it doesn't explode.
+        try:
+            self.assert_(self.conn.autocommit in (True, False))
+        except psycopg2.InterfaceError:
+            pass
 
     def test_default_no_autocommit(self):
         self.assert_(not self.conn.autocommit)

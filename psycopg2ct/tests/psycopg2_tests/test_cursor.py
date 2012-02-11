@@ -23,11 +23,13 @@
 # License for more details.
 
 import time
+import sys
 import psycopg2
 import psycopg2.extensions
 from psycopg2.extensions import b
 from testconfig import dsn
 from testutils import unittest, skip_before_postgres, skip_if_no_namedtuple
+from testutils import skipIf
 
 class CursorTests(unittest.TestCase):
 
@@ -97,6 +99,19 @@ class CursorTests(unittest.TestCase):
         self.assertEqual(b('SELECT 10.3;'),
             cur.mogrify("SELECT %s;", (Decimal("10.3"),)))
 
+    @skipIf(not hasattr(sys, 'getrefcount'), "skipped, no sys.getrefcount()")
+    def test_mogrify_leak_on_multiple_reference(self):
+        # issue #81: reference leak when a parameter value is referenced
+        # more than once from a dict.
+        cur = self.conn.cursor()
+        i = lambda x: x
+        foo = i('foo') * 10
+        import sys
+        nref1 = sys.getrefcount(foo)
+        cur.mogrify("select %(foo)s, %(foo)s, %(foo)s", {'foo': foo})
+        nref2 = sys.getrefcount(foo)
+        self.assertEqual(nref1, nref2)
+
     def test_bad_placeholder(self):
         cur = self.conn.cursor()
         self.assertRaises(psycopg2.ProgrammingError,
@@ -145,6 +160,7 @@ class CursorTests(unittest.TestCase):
         curs = self.conn.cursor()
         w = ref(curs)
         del curs
+        import gc; gc.collect()
         self.assert_(w() is None)
 
     def test_invalid_name(self):
@@ -257,6 +273,69 @@ class CursorTests(unittest.TestCase):
         self.assert_(c.internal_size > 0)
         self.assertEqual(c.precision, None)
         self.assertEqual(c.scale, None)
+
+    @skip_before_postgres(8, 0)
+    def test_named_cursor_stealing(self):
+        # you can use a named cursor to iterate on a refcursor created
+        # somewhere else
+        cur1 = self.conn.cursor()
+        cur1.execute("DECLARE test CURSOR WITHOUT HOLD "
+            " FOR SELECT generate_series(1,7)")
+
+        cur2 = self.conn.cursor('test')
+        # can call fetch without execute
+        self.assertEqual((1,), cur2.fetchone())
+        self.assertEqual([(2,), (3,), (4,)], cur2.fetchmany(3))
+        self.assertEqual([(5,), (6,), (7,)], cur2.fetchall())
+
+    @skip_before_postgres(8, 0)
+    def test_scroll(self):
+        cur = self.conn.cursor()
+        cur.execute("select generate_series(0,9)")
+        cur.scroll(2)
+        self.assertEqual(cur.fetchone(), (2,))
+        cur.scroll(2)
+        self.assertEqual(cur.fetchone(), (5,))
+        cur.scroll(2, mode='relative')
+        self.assertEqual(cur.fetchone(), (8,))
+        cur.scroll(-1)
+        self.assertEqual(cur.fetchone(), (8,))
+        cur.scroll(-2)
+        self.assertEqual(cur.fetchone(), (7,))
+        cur.scroll(2, mode='absolute')
+        self.assertEqual(cur.fetchone(), (2,))
+
+        # on the boundary
+        cur.scroll(0, mode='absolute')
+        self.assertEqual(cur.fetchone(), (0,))
+        self.assertRaises((IndexError, psycopg2.ProgrammingError),
+            cur.scroll, -1, mode='absolute')
+        cur.scroll(0, mode='absolute')
+        self.assertRaises((IndexError, psycopg2.ProgrammingError),
+            cur.scroll, -1)
+
+        cur.scroll(9, mode='absolute')
+        self.assertEqual(cur.fetchone(), (9,))
+        self.assertRaises((IndexError, psycopg2.ProgrammingError),
+            cur.scroll, 10, mode='absolute')
+        cur.scroll(9, mode='absolute')
+        self.assertRaises((IndexError, psycopg2.ProgrammingError),
+            cur.scroll, 1)
+
+    @skip_before_postgres(8, 0)
+    def test_scroll_named(self):
+        cur = self.conn.cursor()
+        cur.execute("select generate_series(0,9)")
+        cur.scroll(2)
+        self.assertEqual(cur.fetchone(), (2,))
+        cur.scroll(2)
+        self.assertEqual(cur.fetchone(), (5,))
+        cur.scroll(2, mode='relative')
+        self.assertEqual(cur.fetchone(), (8,))
+        cur.scroll(9, mode='absolute')
+        self.assertEqual(cur.fetchone(), (9,))
+        self.assertRaises((IndexError, psycopg2.ProgrammingError),
+            cur.scroll, 10, mode='absolute')
 
 
 def test_suite():
