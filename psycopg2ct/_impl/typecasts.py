@@ -95,10 +95,26 @@ def parse_binary(value, length, cursor):
 
 
 def parse_boolean(value, length, cursor):
+    """Typecast the postgres boolean to a python boolean.
+
+    Postgres returns the boolean as a string with 'true' or 'false'
+
+    """
     return value[0] == "t"
 
 
 class parse_array(object):
+    """Parse an array of a items using an configurable caster for the items
+
+    The array syntax is defined as::
+
+        '{ val1 delim val2 delim ... }'
+
+    A two-dimensional array with string items is defined as::
+
+        '{{"meeting", "lunch"}, {"training", "presentation"}}'
+
+    """
     def __init__(self, caster):
         self._caster = caster
 
@@ -159,6 +175,7 @@ class parse_array(object):
 
 
 def parse_unicode(value, length, cursor):
+    """Decode the given value with the connection encoding"""
     return value.decode(cursor._conn._py_enc)
 
 
@@ -218,6 +235,12 @@ def parse_time(value, length, cursor):
 
 
 def parse_interval(value, length, cursor):
+    """Typecast an interval to a datetime.timedelta instance.
+
+    For example, the value '2 years 1 mon 3 days 10:01:39.100' is converted
+    to `datetime.timedelta(763, 36099, 100)`.
+
+    """
     years = months = days = 0
     hours = minutes = seconds = hundreths = 0.0
     v = 0.0
