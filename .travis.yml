@@ -1,0 +1,9 @@
+language: python
+before_script:
+ - "psql -c 'create database psycopg2_test;' -U postgres"
+env:
+ - PSYCOPG2_TESTDB_USER=postgres
+python:
+ - "2.6"
+ - "2.7"
+script: python setup.p test
