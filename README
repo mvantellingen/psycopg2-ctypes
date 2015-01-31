@@ -1,3 +1,8 @@
+Note: this module is no longer supported by me. If you want to take over the
+maintenance then let me know, otherwise see https://github.com/chtd/psycopg2cffi
+
+---
+
 An implementation of the psycopg2 module using ctypes.
 The module is currently compatible with Psycopg 2.4.4.
 
